@@ -9,6 +9,9 @@ export const Attendance: React.FC = () => {
   const [currentAttendance, setCurrentAttendance] = useState<AttendanceRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showManualInput, setShowManualInput] = useState(false)
+  const [manualTime, setManualTime] = useState('')
+  const [manualDate, setManualDate] = useState('')
   
   const { authUser } = useAuthContext()
   const today = new Date().toISOString().split('T')[0]
@@ -79,6 +82,30 @@ export const Attendance: React.FC = () => {
     }
   }
 
+  const handleManualClockIn = async () => {
+    if (!authUser || !manualDate || !manualTime) return
+
+    try {
+      const dateTime = new Date(`${manualDate}T${manualTime}:00`)
+      const { error } = await supabase
+        .from('attendances')
+        .insert({
+          user_id: authUser.user.id,
+          start_time: dateTime.toISOString()
+        })
+      
+      if (error) throw error
+      
+      setShowManualInput(false)
+      setManualTime('')
+      setManualDate('')
+      fetchAttendances()
+      checkCurrentAttendance()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    }
+  }
+
   const handleClockOut = async () => {
     if (!authUser || !currentAttendance) return
 
@@ -91,6 +118,28 @@ export const Attendance: React.FC = () => {
       if (error) throw error
       
       setCurrentAttendance(null)
+      fetchAttendances()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    }
+  }
+
+  const handleManualClockOut = async () => {
+    if (!authUser || !currentAttendance || !manualDate || !manualTime) return
+
+    try {
+      const dateTime = new Date(`${manualDate}T${manualTime}:00`)
+      const { error } = await supabase
+        .from('attendances')
+        .update({ end_time: dateTime.toISOString() })
+        .eq('id', currentAttendance.id)
+      
+      if (error) throw error
+      
+      setCurrentAttendance(null)
+      setShowManualInput(false)
+      setManualTime('')
+      setManualDate('')
       fetchAttendances()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
@@ -151,24 +200,100 @@ export const Attendance: React.FC = () => {
                 <div className="text-green-400 text-lg">
                   出勤中 - {formatTime(currentAttendance.start_time)}から
                 </div>
-                <button
-                  onClick={handleClockOut}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
-                >
-                  退勤
-                </button>
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={handleClockOut}
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
+                  >
+                    退勤
+                  </button>
+                  <button
+                    onClick={() => setShowManualInput(!showManualInput)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
+                  >
+                    時刻指定退勤
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="text-gray-400 text-lg">
                   未出勤
                 </div>
-                <button
-                  onClick={handleClockIn}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
-                >
-                  出勤
-                </button>
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={handleClockIn}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
+                  >
+                    出勤
+                  </button>
+                  <button
+                    onClick={() => setShowManualInput(!showManualInput)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
+                  >
+                    時刻指定出勤
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Manual Time Input */}
+            {showManualInput && (
+              <div className="mt-6 p-6 bg-gray-800/50 rounded-lg">
+                <h3 className="text-lg font-semibold text-white mb-4">時刻を指定</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      日付
+                    </label>
+                    <input
+                      type="date"
+                      value={manualDate}
+                      onChange={(e) => setManualDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      時刻（分単位まで）
+                    </label>
+                    <input
+                      type="time"
+                      value={manualTime}
+                      onChange={(e) => setManualTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div className="flex space-x-4">
+                    {currentAttendance ? (
+                      <button
+                        onClick={handleManualClockOut}
+                        disabled={!manualDate || !manualTime}
+                        className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                      >
+                        指定時刻で退勤
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleManualClockIn}
+                        disabled={!manualDate || !manualTime}
+                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                      >
+                        指定時刻で出勤
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setShowManualInput(false)
+                        setManualTime('')
+                        setManualDate('')
+                      }}
+                      className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
