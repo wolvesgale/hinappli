@@ -5,6 +5,7 @@ import { RequireOwner } from './components/guards/RequireOwner'
 import { Login } from './pages/Login'
 import { Home } from './pages/Home'
 import { Register } from './pages/Register'
+import AccessRequestPage from './pages/AccessRequestPage'
 import { Transactions } from './pages/Transactions'
 import { Attendance } from './pages/Attendance'
 import { Admin } from './pages/Admin'
@@ -31,6 +32,7 @@ function App() {
             element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} 
           />
           <Route path="/register" element={<Register />} />
+          <Route path="/access-request" element={<AccessRequestPage />} />
           
           {/* Protected Routes */}
           <Route 

@@ -1,25 +1,18 @@
-import React, { type ReactNode } from "react";
-import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/AuthProvider";
+// 互換性のための再エクスポート - components/guardsへの段階的移行用
+// TODO: 全ての参照をcomponents/guardsに移行後、このファイルを削除予定
 
-export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
-  const location = useLocation();
-  if (loading) return <div style={{ padding: 16 }}>読み込み中...</div>;
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  return <>{children}</>;
-}
+export { RequireAuth } from '../components/guards/RequireAuth'
+export { RequireOwner } from '../components/guards/RequireOwner'
 
-export function RequireOwner({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) return <div style={{ padding: 16 }}>読み込み中...</div>;
-  if (!user) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-}
+// RedirectIfAuthedは現在components/guardsに存在しないため、一時的に実装を維持
+import React from 'react'
+import type { ReactNode } from 'react'
+import { Navigate } from 'react-router-dom'
+import { useAuthContext } from '../contexts/AuthProvider'
 
 export function RedirectIfAuthed({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  if (user) return <Navigate to="/" replace />;
-  return <>{children}</>;
+  const { authUser, loading } = useAuthContext()
+  if (loading) return null
+  if (authUser) return <Navigate to="/" replace />
+  return <>{children}</>
 }
