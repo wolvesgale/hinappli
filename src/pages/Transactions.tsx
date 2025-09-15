@@ -20,6 +20,7 @@ export const Transactions: React.FC = () => {
 
   useEffect(() => {
     fetchTransactions()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchTransactions = async () => {
@@ -32,8 +33,8 @@ export const Transactions: React.FC = () => {
       
       if (error) throw error
       setTransactions(data || [])
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     } finally {
       setLoading(false)
     }
@@ -59,8 +60,8 @@ export const Transactions: React.FC = () => {
       setNewTransaction({ amount: '', paymentMethod: 'cash', memo: '' })
       setShowAddForm(false)
       fetchTransactions()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
   }
 

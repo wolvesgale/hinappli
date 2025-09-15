@@ -28,8 +28,8 @@ export const Admin: React.FC = () => {
       
       if (error) throw error
       setAccessRequests(data || [])
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
   }
 
@@ -42,8 +42,8 @@ export const Admin: React.FC = () => {
       
       if (error) throw error
       setUserRoles(data || [])
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     } finally {
       setLoading(false)
     }
@@ -59,7 +59,7 @@ export const Admin: React.FC = () => {
         .insert({
           email,
           display_name: displayName,
-          role: role as any
+          role: role as 'owner' | 'cast' | 'driver'
         })
       
       if (roleError) throw roleError
@@ -78,8 +78,8 @@ export const Admin: React.FC = () => {
 
       fetchAccessRequests()
       fetchUserRoles()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
   }
 
@@ -98,8 +98,8 @@ export const Admin: React.FC = () => {
       
       if (error) throw error
       fetchAccessRequests()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
   }
 
@@ -114,8 +114,8 @@ export const Admin: React.FC = () => {
       
       if (error) throw error
       fetchUserRoles()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
   }
 
