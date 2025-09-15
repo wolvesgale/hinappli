@@ -402,7 +402,7 @@ export const Attendance: React.FC = () => {
 
         {/* Today's Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-white mb-2">今日の出勤時間</h3>
             <p className="text-2xl font-bold text-pink-400">
               {attendances.length > 0 && attendances[0].start_time.startsWith(today) 
@@ -411,7 +411,7 @@ export const Attendance: React.FC = () => {
               }
             </p>
           </div>
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-white mb-2">今日の退勤時間</h3>
             <p className="text-2xl font-bold text-pink-400">
               {attendances.length > 0 && attendances[0].end_time
@@ -420,7 +420,7 @@ export const Attendance: React.FC = () => {
               }
             </p>
           </div>
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-white mb-2">今日の勤務時間</h3>
             <p className="text-2xl font-bold text-pink-400">
               {attendances.length > 0

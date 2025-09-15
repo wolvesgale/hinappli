@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { RegisterManager } from '../components/RegisterManager'
@@ -10,6 +10,39 @@ export const Home: React.FC = () => {
   const [cashAmount, setCashAmount] = useState('')
   const [paypayAmount, setPaypayAmount] = useState('')
 
+  // レジセッションの状態を取得
+  useEffect(() => {
+    const fetchRegisterStatus = async () => {
+      if (!authUser) return
+
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const { data, error } = await supabase
+          .from('register_sessions')
+          .select('*')
+          .eq('biz_date', today)
+          .eq('status', 'open')
+          .single()
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('レジ状態取得エラー:', error)
+          return
+        }
+
+        // オープン中のレジセッションが見つかった場合
+        if (data) {
+          setRegisterStatus('open')
+        } else {
+          setRegisterStatus('closed')
+        }
+      } catch (err) {
+        console.error('レジ状態確認エラー:', err)
+      }
+    }
+
+    fetchRegisterStatus()
+  }, [authUser])
+
   const handleSignOut = async () => {
     try {
       await signOut()
@@ -19,7 +52,14 @@ export const Home: React.FC = () => {
   }
 
   const handleCashSale = async () => {
-    if (cashAmount && authUser) {
+    if (!authUser) return
+    
+    if (registerStatus !== 'open') {
+      alert('レジがオープンされていません。先にレジをオープンしてください。')
+      return
+    }
+    
+    if (cashAmount) {
       try {
         const today = new Date().toISOString().split('T')[0]
         const { error } = await supabase
@@ -36,12 +76,20 @@ export const Home: React.FC = () => {
         console.log('現金売上を記録しました:', cashAmount)
       } catch (error) {
         console.error('現金売上記録エラー:', error)
+        alert('売上記録に失敗しました。もう一度お試しください。')
       }
     }
   }
 
   const handlePaypaySale = async () => {
-    if (paypayAmount && authUser) {
+    if (!authUser) return
+    
+    if (registerStatus !== 'open') {
+      alert('レジがオープンされていません。先にレジをオープンしてください。')
+      return
+    }
+    
+    if (paypayAmount) {
       try {
         const today = new Date().toISOString().split('T')[0]
         const { error } = await supabase
@@ -58,6 +106,7 @@ export const Home: React.FC = () => {
         console.log('PayPay売上を記録しました:', paypayAmount)
       } catch (error) {
         console.error('PayPay売上記録エラー:', error)
+        alert('売上記録に失敗しました。もう一度お試しください。')
       }
     }
   }

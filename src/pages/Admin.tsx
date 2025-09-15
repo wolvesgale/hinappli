@@ -115,6 +115,7 @@ export const Admin: React.FC = () => {
       if (error) throw error
       setAccessRequests(data || [])
     } catch (err) {
+      console.error('Access requests fetch error:', err)
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
   }
