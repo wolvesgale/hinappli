@@ -197,7 +197,7 @@ export const Attendance: React.FC = () => {
         </div>
       </header>
 
-      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="relative z-10 max-w-md mx-auto px-4 py-8">
         {/* Clock In/Out Section */}
         <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-8 mb-8">
           <div className="text-center">
