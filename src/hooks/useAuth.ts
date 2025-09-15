@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { supabase, getUserRole } from '@/lib/supabase'
-import type { AppRole } from '@/types/database'
+import { supabase, getUserRole } from '../lib/supabase'
+import type { AppRole } from '../types/database'
 
 export interface AuthUser {
   user: User

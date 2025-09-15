@@ -18,6 +18,7 @@ export const Attendance: React.FC = () => {
       fetchAttendances()
       checkCurrentAttendance()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser])
 
   const fetchAttendances = async () => {
@@ -33,8 +34,8 @@ export const Attendance: React.FC = () => {
       
       if (error) throw error
       setAttendances(data || [])
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     } finally {
       setLoading(false)
     }
@@ -53,7 +54,7 @@ export const Attendance: React.FC = () => {
       
       if (error && error.code !== 'PGRST116') throw error
       setCurrentAttendance(data)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error checking current attendance:', err)
     }
   }
@@ -73,8 +74,8 @@ export const Attendance: React.FC = () => {
       
       fetchAttendances()
       checkCurrentAttendance()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
   }
 
@@ -91,8 +92,8 @@ export const Attendance: React.FC = () => {
       
       setCurrentAttendance(null)
       fetchAttendances()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
   }
 

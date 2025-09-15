@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import type { AuthUser } from '../hooks/useAuth'
 import type { AppRole } from '../types/database'
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface AuthContextType {
   authUser: AuthUser | null
   loading: boolean
@@ -17,9 +18,11 @@ interface AuthContextType {
   isOwner: boolean
   isAuthenticated: boolean
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuthContext = () => {
   const context = useContext(AuthContext)
   if (context === undefined) {

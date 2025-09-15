@@ -28,8 +28,8 @@ export const Login: React.FC = () => {
         await signIn(email, password)
         navigate(from, { replace: true })
       }
-    } catch (err: any) {
-      setError(err.message || 'ログインに失敗しました')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ログインに失敗しました')
     } finally {
       setLoading(false)
     }
@@ -39,7 +39,7 @@ export const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-white mb-2">TRAE POS</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">hinappli</h1>
           <h2 className="text-2xl font-semibold text-gray-300">ログイン</h2>
         </div>
         
