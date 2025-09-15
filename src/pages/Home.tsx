@@ -181,12 +181,10 @@ export const Home: React.FC = () => {
             to="/transactions"
             className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 hover:bg-black/40 transition-colors group"
           >
-            <div className="text-pink-400 mb-2 flex justify-center">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-              </svg>
+            <div className="text-4xl mb-2 flex justify-center">
+              💰
             </div>
-            <h3 className="text-sm font-semibold text-white text-center group-hover:text-pink-400 transition-colors">
+            <h3 className="text-xs font-medium text-white text-center group-hover:text-pink-400 transition-colors">
               売上管理
             </h3>
           </Link>
@@ -196,12 +194,10 @@ export const Home: React.FC = () => {
             to="/attendance"
             className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 hover:bg-black/40 transition-colors group"
           >
-            <div className="text-pink-400 mb-2 flex justify-center">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.9 1 3 1.9 3 3V21C3 22.1 3.9 23 5 23H19C20.1 23 21 22.1 21 21V9M19 9H14V4H19V9Z" />
-              </svg>
+            <div className="text-4xl mb-2 flex justify-center">
+              ⏰
             </div>
-            <h3 className="text-sm font-semibold text-white text-center group-hover:text-pink-400 transition-colors">
+            <h3 className="text-xs font-medium text-white text-center group-hover:text-pink-400 transition-colors">
               勤怠管理
             </h3>
           </Link>
@@ -212,12 +208,10 @@ export const Home: React.FC = () => {
               to="/admin"
               className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 hover:bg-black/40 transition-colors group"
             >
-              <div className="text-pink-400 mb-2 flex justify-center">
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M5 16L3 5L8.5 12L12 4L15.5 12L21 5L19 16H5ZM12 18C13.1 18 14 18.9 14 20S13.1 22 12 22 10 21.1 10 20 10.9 18 12 18Z" />
-                </svg>
+              <div className="text-4xl mb-2 flex justify-center">
+                👑
               </div>
-              <h3 className="text-sm font-semibold text-white text-center group-hover:text-pink-400 transition-colors">
+              <h3 className="text-xs font-medium text-white text-center group-hover:text-pink-400 transition-colors">
                 管理者設定
               </h3>
             </Link>

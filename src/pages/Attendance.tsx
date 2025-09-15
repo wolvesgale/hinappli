@@ -66,11 +66,13 @@ export const Attendance: React.FC = () => {
     if (!authUser) return
 
     try {
+      // 分数単位の現在時刻を取得
+      const now = new Date()
       const { error } = await supabase
         .from('attendances')
         .insert({
           user_id: authUser.user.id,
-          start_time: new Date().toISOString()
+          start_time: now.toISOString()
         })
       
       if (error) throw error
@@ -110,9 +112,11 @@ export const Attendance: React.FC = () => {
     if (!authUser || !currentAttendance) return
 
     try {
+      // 分数単位の現在時刻を取得
+      const now = new Date()
       const { error } = await supabase
         .from('attendances')
-        .update({ end_time: new Date().toISOString() })
+        .update({ end_time: now.toISOString() })
         .eq('id', currentAttendance.id)
       
       if (error) throw error
@@ -166,9 +170,15 @@ export const Attendance: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 relative overflow-hidden">
+      {/* 星空背景 */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="stars"></div>
+        <div className="twinkling"></div>
+      </div>
+      
       {/* Header */}
-      <header className="bg-black/20 backdrop-blur-sm border-b border-white/10">
+      <header className="relative z-10 bg-black/30 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
@@ -187,9 +197,9 @@ export const Attendance: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Clock In/Out Section */}
-        <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-8 mb-8">
+        <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-8 mb-8">
           <div className="text-center">
             <div className="text-4xl font-bold text-white mb-4">
               {new Date().toLocaleTimeString('ja-JP')}
