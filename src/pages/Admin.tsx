@@ -51,6 +51,22 @@ export const Admin: React.FC = () => {
   const [dateRange, setDateRange] = useState<'week' | 'month'>('month')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   
+  // New user form state
+  const [showAddUserForm, setShowAddUserForm] = useState(false)
+  const [newUserForm, setNewUserForm] = useState({
+    email: '',
+    display_name: '',
+    role: 'cast' as 'owner' | 'cast' | 'driver',
+    password: ''
+  })
+  
+  // Edit transaction state
+  const [editingTransaction, setEditingTransaction] = useState<string | null>(null)
+  const [editTransactionForm, setEditTransactionForm] = useState({
+    amount: 0,
+    payment_method: 'cash' as 'cash' | 'paypay'
+  })
+  
   const { authUser, loading: authLoading, isOwner } = useAuthContext()
 
   // 認証とオーナー権限の確認
@@ -156,28 +172,52 @@ export const Admin: React.FC = () => {
   const fetchAttendanceData = async () => {
     try {
       const startDate = getDateRange()
-      const { data: attendanceData, error } = await supabase
+      
+      // First, get attendance records
+      const { data: attendanceData, error: attendanceError } = await supabase
         .from('attendances')
-        .select(`
-          *,
-          user_roles!inner(email, display_name, role)
-        `)
+        .select('*')
         .gte('start_time', startDate.start)
         .lte('start_time', startDate.end)
         .order('start_time', { ascending: false })
       
-      if (error) throw error
+      if (attendanceError) throw attendanceError
 
-      // Group by user and calculate totals
+      // Then get all user roles
+      const { data: userRoles, error: userRolesError } = await supabase
+        .from('user_roles')
+        .select('*')
+      
+      if (userRolesError) throw userRolesError
+
+      // Create a map of user_id to user info by matching with auth.users
+      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+      
+      if (authError) {
+        console.warn('Could not fetch auth users, using simplified approach')
+        // Fallback: create empty attendance data
+        setAttendanceData([])
+        return
+      }
+
+      // Create user mapping
       const userMap = new Map<string, UserWithAttendance>()
       
       attendanceData?.forEach((record: any) => {
-        const userEmail = record.user_roles.email
+        // Find the auth user by user_id
+        const authUser = authUsers.users.find(u => u.id === record.user_id)
+        if (!authUser) return
+        
+        // Find the user role by email
+        const userRole = userRoles?.find(ur => ur.email === authUser.email)
+        if (!userRole) return
+        
+        const userEmail = userRole.email
         if (!userMap.has(userEmail)) {
           userMap.set(userEmail, {
             email: userEmail,
-            display_name: record.user_roles.display_name,
-            role: record.user_roles.role,
+            display_name: userRole.display_name,
+            role: userRole.role,
             total_hours: 0,
             total_pay: 0,
             attendance_records: []
@@ -192,13 +232,14 @@ export const Admin: React.FC = () => {
           const end = new Date(record.end_time)
           const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
           user.total_hours += hours
-          user.total_pay += hours * 1000 // 時給1000円として計算
+          user.total_pay += hours * getHourlyRate(userRole.role)
         }
       })
       
       setAttendanceData(Array.from(userMap.values()))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました')
+      console.error('Attendance data fetch error:', err)
+      setError(err instanceof Error ? err.message : '勤怠データの取得でエラーが発生しました')
     }
   }
 
@@ -331,9 +372,93 @@ export const Admin: React.FC = () => {
         .eq('email', email)
       
       if (error) throw error
+      
       fetchUserRoles()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    }
+  }
+
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      // Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: newUserForm.email,
+        password: newUserForm.password,
+        email_confirm: true
+      })
+      
+      if (authError) throw authError
+      
+      // Add user to user_roles table
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .insert({
+          email: newUserForm.email,
+          display_name: newUserForm.display_name,
+          role: newUserForm.role
+        })
+      
+      if (roleError) throw roleError
+      
+      // Reset form and close modal
+      setNewUserForm({
+        email: '',
+        display_name: '',
+        role: 'cast',
+        password: ''
+      })
+      setShowAddUserForm(false)
+      
+      fetchUserRoles()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ユーザー追加でエラーが発生しました')
+    }
+  }
+
+  const handleEditTransaction = (transaction: Transaction) => {
+    setEditingTransaction(transaction.id)
+    setEditTransactionForm({
+      amount: transaction.amount,
+      payment_method: transaction.payment_method as 'cash' | 'paypay'
+    })
+  }
+
+  const handleUpdateTransaction = async (transactionId: string) => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          amount: editTransactionForm.amount,
+          payment_method: editTransactionForm.payment_method
+        })
+        .eq('id', transactionId)
+      
+      if (error) throw error
+      
+      setEditingTransaction(null)
+      fetchTransactions()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '売上データの更新でエラーが発生しました')
+    }
+  }
+
+  const handleDeleteTransaction = async (transactionId: string) => {
+    if (!confirm('この売上データを削除しますか？')) return
+    
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', transactionId)
+      
+      if (error) throw error
+      
+      fetchTransactions()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '売上データの削除でエラーが発生しました')
     }
   }
 
@@ -535,7 +660,15 @@ export const Admin: React.FC = () => {
         {activeTab === 'users' && (
           <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
             <div className="p-6">
-              <h3 className="text-xl font-bold text-white mb-4">登録済みユーザー</h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-white">登録済みユーザー</h3>
+                <button
+                  onClick={() => setShowAddUserForm(true)}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  ユーザー追加
+                </button>
+              </div>
               
               {loading ? (
                 <div className="text-center py-8">
@@ -580,6 +713,82 @@ export const Admin: React.FC = () => {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Add User Modal */}
+        {showAddUserForm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+              <h3 className="text-xl font-bold text-white mb-4">新規ユーザー追加</h3>
+              <form onSubmit={handleAddUser} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    メールアドレス
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={newUserForm.email}
+                    onChange={(e) => setNewUserForm({...newUserForm, email: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    表示名
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newUserForm.display_name}
+                    onChange={(e) => setNewUserForm({...newUserForm, display_name: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    権限
+                  </label>
+                  <select
+                    value={newUserForm.role}
+                    onChange={(e) => setNewUserForm({...newUserForm, role: e.target.value as 'owner' | 'cast' | 'driver'})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="cast">キャスト</option>
+                    <option value="driver">ドライバー</option>
+                    <option value="owner">オーナー</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    初期パスワード
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={newUserForm.password}
+                    onChange={(e) => setNewUserForm({...newUserForm, password: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded transition-colors"
+                  >
+                    追加
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddUserForm(false)}
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
@@ -629,23 +838,88 @@ export const Admin: React.FC = () => {
                         key={transaction.id}
                         className="flex justify-between items-center p-4 bg-gray-800/50 rounded-lg"
                       >
-                        <div className="flex space-x-6">
-                          <div>
-                            <div className="text-sm text-gray-400">金額</div>
-                            <div className="text-white font-semibold">
-                              ¥{transaction.amount.toLocaleString()}
+                        {editingTransaction === transaction.id ? (
+                          // Edit mode
+                          <div className="flex-1 flex items-center space-x-4">
+                            <div>
+                              <label className="block text-xs text-gray-400 mb-1">金額</label>
+                              <input
+                                type="number"
+                                value={editTransactionForm.amount}
+                                onChange={(e) => setEditTransactionForm({
+                                  ...editTransactionForm,
+                                  amount: Number(e.target.value)
+                                })}
+                                className="w-24 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-400 mb-1">支払方法</label>
+                              <select
+                                value={editTransactionForm.payment_method}
+                                onChange={(e) => setEditTransactionForm({
+                                  ...editTransactionForm,
+                                  payment_method: e.target.value as 'cash' | 'paypay'
+                                })}
+                                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              >
+                                <option value="cash">現金</option>
+                                <option value="paypay">PayPay</option>
+                              </select>
+                            </div>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleUpdateTransaction(transaction.id)}
+                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                              >
+                                保存
+                              </button>
+                              <button
+                                onClick={() => setEditingTransaction(null)}
+                                className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                              >
+                                キャンセル
+                              </button>
                             </div>
                           </div>
-                          <div>
-                            <div className="text-sm text-gray-400">支払方法</div>
-                            <div className="text-white font-semibold">
-                              {transaction.payment_method === 'cash' ? '現金' : 'PayPay'}
+                        ) : (
+                          // View mode
+                          <>
+                            <div className="flex space-x-6">
+                              <div>
+                                <div className="text-sm text-gray-400">金額</div>
+                                <div className="text-white font-semibold">
+                                  ¥{transaction.amount.toLocaleString()}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-sm text-gray-400">支払方法</div>
+                                <div className="text-white font-semibold">
+                                  {transaction.payment_method === 'cash' ? '現金' : 'PayPay'}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                        <div className="text-sm text-gray-400">
-                          {new Date(transaction.created_at).toLocaleString('ja-JP')}
-                        </div>
+                            <div className="flex items-center space-x-4">
+                              <div className="text-sm text-gray-400">
+                                {new Date(transaction.created_at).toLocaleString('ja-JP')}
+                              </div>
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleEditTransaction(transaction)}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                                >
+                                  編集
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTransaction(transaction.id)}
+                                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                                >
+                                  削除
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
