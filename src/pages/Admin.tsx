@@ -42,6 +42,7 @@ interface RegisterSession {
 export const Admin: React.FC = () => {
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([])
   const [userRoles, setUserRoles] = useState<UserRole[]>([])
+  const [users, setUsers] = useState<UserRole[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [attendanceData, setAttendanceData] = useState<UserWithAttendance[]>([])
   const [registerSessions, setRegisterSessions] = useState<RegisterSession[]>([])
@@ -51,13 +52,17 @@ export const Admin: React.FC = () => {
   const [dateRange, setDateRange] = useState<'week' | 'month'>('month')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   
+  // Payroll specific states
+  const [selectedUser, setSelectedUser] = useState<string>('all')
+  const [payrollDateRange, setPayrollDateRange] = useState<'week' | 'month'>('week')
+  const [payrollSelectedDate, setPayrollSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  
   // New user form state
-  const [showAddUserForm, setShowAddUserForm] = useState(false)
+  const [showAddUserModal, setShowAddUserModal] = useState(false)
   const [newUserForm, setNewUserForm] = useState({
     email: '',
     display_name: '',
-    role: 'cast' as 'owner' | 'cast' | 'driver',
-    password: ''
+    role: 'cast' as 'owner' | 'cast' | 'driver'
   })
   
   // Edit transaction state
@@ -145,6 +150,7 @@ export const Admin: React.FC = () => {
       
       if (error) throw error
       setUserRoles(data || [])
+      setUsers(data || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     } finally {
@@ -171,7 +177,8 @@ export const Admin: React.FC = () => {
 
   const fetchAttendanceData = async () => {
     try {
-      const startDate = getDateRange()
+      // Use payroll-specific date range for attendance data
+      const startDate = getPayrollDateRange()
       
       // First, get attendance records
       const { data: attendanceData, error: attendanceError } = await supabase
@@ -267,6 +274,30 @@ export const Admin: React.FC = () => {
     const selected = new Date(selectedDate)
     
     if (dateRange === 'week') {
+      const startOfWeek = new Date(selected)
+      startOfWeek.setDate(selected.getDate() - selected.getDay())
+      const endOfWeek = new Date(startOfWeek)
+      endOfWeek.setDate(startOfWeek.getDate() + 6)
+      
+      return {
+        start: startOfWeek.toISOString().split('T')[0] + 'T00:00:00',
+        end: endOfWeek.toISOString().split('T')[0] + 'T23:59:59'
+      }
+    } else {
+      const startOfMonth = new Date(selected.getFullYear(), selected.getMonth(), 1)
+      const endOfMonth = new Date(selected.getFullYear(), selected.getMonth() + 1, 0)
+      
+      return {
+        start: startOfMonth.toISOString().split('T')[0] + 'T00:00:00',
+        end: endOfMonth.toISOString().split('T')[0] + 'T23:59:59'
+      }
+    }
+  }
+
+  const getPayrollDateRange = () => {
+    const selected = new Date(payrollSelectedDate)
+    
+    if (payrollDateRange === 'week') {
       const startOfWeek = new Date(selected)
       startOfWeek.setDate(selected.getDate() - selected.getDay())
       const endOfWeek = new Date(startOfWeek)
@@ -383,16 +414,7 @@ export const Admin: React.FC = () => {
     e.preventDefault()
     
     try {
-      // Create user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: newUserForm.email,
-        password: newUserForm.password,
-        email_confirm: true
-      })
-      
-      if (authError) throw authError
-      
-      // Add user to user_roles table
+      // Add user to user_roles table first
       const { error: roleError } = await supabase
         .from('user_roles')
         .insert({
@@ -407,12 +429,12 @@ export const Admin: React.FC = () => {
       setNewUserForm({
         email: '',
         display_name: '',
-        role: 'cast',
-        password: ''
+        role: 'cast'
       })
-      setShowAddUserForm(false)
+      setShowAddUserModal(false)
       
       fetchUserRoles()
+      alert('ユーザーが正常に追加されました。ユーザーは通常の登録プロセスでアカウントを作成できます。')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ユーザー追加でエラーが発生しました')
     }
@@ -449,15 +471,21 @@ export const Admin: React.FC = () => {
     if (!confirm('この売上データを削除しますか？')) return
     
     try {
+      console.log('Deleting transaction:', transactionId)
       const { error } = await supabase
         .from('transactions')
         .delete()
         .eq('id', transactionId)
       
-      if (error) throw error
+      if (error) {
+        console.error('Delete error:', error)
+        throw error
+      }
       
+      console.log('Transaction deleted successfully')
       fetchTransactions()
     } catch (err) {
+      console.error('Delete transaction error:', err)
       setError(err instanceof Error ? err.message : '売上データの削除でエラーが発生しました')
     }
   }
@@ -663,8 +691,8 @@ export const Admin: React.FC = () => {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-white">登録済みユーザー</h3>
                 <button
-                  onClick={() => setShowAddUserForm(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+                  onClick={() => setShowAddUserModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
                 >
                   ユーザー追加
                 </button>
@@ -683,13 +711,13 @@ export const Admin: React.FC = () => {
                   {userRoles.map((user) => (
                     <div
                       key={user.email}
-                      className="flex justify-between items-center p-4 bg-gray-800/50 rounded-lg"
+                      className="flex justify-between items-center p-4 bg-gray-800/50 rounded-lg border border-gray-700"
                     >
-                      <div>
-                        <div className="text-white font-semibold">
+                      <div className="flex-1">
+                        <div className="text-white font-semibold text-lg">
                           {user.display_name}
                         </div>
-                        <div className="text-sm text-gray-400">
+                        <div className="text-sm text-gray-400 mt-1">
                           {user.email}
                         </div>
                         <div className="flex items-center space-x-2 mt-2">
@@ -701,14 +729,22 @@ export const Admin: React.FC = () => {
                           </span>
                         </div>
                       </div>
-                      {user.email !== authUser?.user.email && (
-                        <button
-                          onClick={() => handleRemoveUser(user.email)}
-                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
-                        >
-                          削除
-                        </button>
-                      )}
+                      <div className="flex items-center space-x-3">
+                        <div className="text-right">
+                          <div className="text-sm text-gray-400">時給</div>
+                          <div className="text-white font-semibold">
+                            ¥{getHourlyRate(user.role).toLocaleString()}
+                          </div>
+                        </div>
+                        {user.email !== authUser?.user.email && (
+                          <button
+                            onClick={() => handleRemoveUser(user.email)}
+                            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                          >
+                            削除
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -718,7 +754,7 @@ export const Admin: React.FC = () => {
         )}
 
         {/* Add User Modal */}
-        {showAddUserForm && (
+        {showAddUserModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
               <h3 className="text-xl font-bold text-white mb-4">新規ユーザー追加</h3>
@@ -761,18 +797,6 @@ export const Admin: React.FC = () => {
                     <option value="owner">オーナー</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    初期パスワード
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={newUserForm.password}
-                    onChange={(e) => setNewUserForm({...newUserForm, password: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
                 <div className="flex space-x-3 pt-4">
                   <button
                     type="submit"
@@ -782,7 +806,7 @@ export const Admin: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowAddUserForm(false)}
+                    onClick={() => setShowAddUserModal(false)}
                     className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded transition-colors"
                   >
                     キャンセル
@@ -932,18 +956,70 @@ export const Admin: React.FC = () => {
         {/* Payroll Tab */}
         {activeTab === 'payroll' && (
           <div className="space-y-6">
+            {/* User Selection and Date Range Controls */}
+            <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
+              <h3 className="text-xl font-bold text-white mb-4">給与計算設定</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    対象ユーザー
+                  </label>
+                  <select
+                    value={selectedUser}
+                    onChange={(e) => setSelectedUser(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">全ユーザー</option>
+                    {users.map((user) => (
+                      <option key={user.email} value={user.email}>
+                        {user.display_name} ({getRoleLabel(user.role)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    期間
+                  </label>
+                  <select
+                    value={payrollDateRange}
+                    onChange={(e) => setPayrollDateRange(e.target.value as 'week' | 'month')}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="week">週次</option>
+                    <option value="month">月次</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    基準日
+                  </label>
+                  <input
+                    type="date"
+                    value={payrollSelectedDate}
+                    onChange={(e) => setPayrollSelectedDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Payroll Summary */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-white mb-2">総給与支払額</h3>
                 <p className="text-3xl font-bold text-green-400">
-                  ¥{attendanceData.reduce((sum, user) => sum + user.total_pay, 0).toLocaleString()}
+                  ¥{attendanceData
+                    .filter(user => selectedUser === 'all' || user.email === selectedUser)
+                    .reduce((sum, user) => sum + user.total_pay, 0).toLocaleString()}
                 </p>
               </div>
               <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-white mb-2">総勤務時間</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">総勤務時間（15分単位切り上げ）</h3>
                 <p className="text-3xl font-bold text-blue-400">
-                  {attendanceData.reduce((sum, user) => sum + user.total_hours, 0).toFixed(1)}時間
+                  {attendanceData
+                    .filter(user => selectedUser === 'all' || user.email === selectedUser)
+                    .reduce((sum, user) => sum + Math.ceil(user.total_hours * 4) / 4, 0).toFixed(1)}時間
                 </p>
               </div>
             </div>
@@ -951,19 +1027,28 @@ export const Admin: React.FC = () => {
             {/* Individual Payroll */}
             <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
               <div className="p-6">
-                <h3 className="text-xl font-bold text-white mb-4">個別給与計算（15分単位切り上げ）</h3>
+                <h3 className="text-xl font-bold text-white mb-4">
+                  個別給与計算（15分単位切り上げ）
+                  {selectedUser !== 'all' && (
+                    <span className="text-sm text-gray-400 ml-2">
+                      - {users.find(u => u.email === selectedUser)?.display_name}
+                    </span>
+                  )}
+                </h3>
                 
                 {loading ? (
                   <div className="text-center py-8">
                     <div className="text-gray-300">読み込み中...</div>
                   </div>
-                ) : attendanceData.length === 0 ? (
+                ) : attendanceData.filter(user => selectedUser === 'all' || user.email === selectedUser).length === 0 ? (
                   <div className="text-center py-8">
                     <div className="text-gray-300">該当期間の勤怠データはありません</div>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {attendanceData.map((user) => (
+                    {attendanceData
+                      .filter(user => selectedUser === 'all' || user.email === selectedUser)
+                      .map((user) => (
                       <div
                         key={user.email}
                         className="p-4 bg-gray-800/50 rounded-lg"
@@ -986,11 +1071,12 @@ export const Admin: React.FC = () => {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-2xl font-bold text-green-400">
-                              ¥{user.total_pay.toLocaleString()}
-                            </div>
-                            <div className="text-sm text-gray-400">
+                            <div className="text-sm text-gray-400">実働時間 → 切り上げ時間</div>
+                            <div className="text-lg font-bold text-blue-400">
                               {user.total_hours.toFixed(1)}時間 → {Math.ceil(user.total_hours * 4) / 4}時間
+                            </div>
+                            <div className="text-sm text-gray-400 mt-1">
+                              期間: {payrollDateRange === 'week' ? '週次' : '月次'} ({payrollSelectedDate}基準)
                             </div>
                           </div>
                         </div>
