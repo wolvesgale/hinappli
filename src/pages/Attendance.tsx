@@ -17,7 +17,7 @@ export const Attendance: React.FC = () => {
   const [editStartTime, setEditStartTime] = useState('')
   const [editEndTime, setEditEndTime] = useState('')
   const [editDate, setEditDate] = useState('')
-  const { authUser } = useAuthContext()
+  const { authUser, isOwner } = useAuthContext()
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
@@ -72,17 +72,22 @@ export const Attendance: React.FC = () => {
     try {
       // 分数単位の現在時刻を取得
       const now = new Date()
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('attendances')
         .insert({
           user_id: authUser.user.id,
           start_time: now.toISOString()
         })
+        .select()
+        .single()
       
       if (error) throw error
       
-      fetchAttendances()
-      checkCurrentAttendance()
+      // 新しい出勤記録を即座に状態に反映
+      setCurrentAttendance(data)
+      
+      // データを再取得
+      await fetchAttendances()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
@@ -93,20 +98,26 @@ export const Attendance: React.FC = () => {
 
     try {
       const dateTime = new Date(`${manualDate}T${manualTime}:00`)
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('attendances')
         .insert({
           user_id: authUser.user.id,
           start_time: dateTime.toISOString()
         })
+        .select()
+        .single()
       
       if (error) throw error
+      
+      // 新しい出勤記録を即座に状態に反映
+      setCurrentAttendance(data)
       
       setShowManualInput(false)
       setManualTime('')
       setManualDate('')
-      fetchAttendances()
-      checkCurrentAttendance()
+      
+      // データを再取得
+      await fetchAttendances()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
@@ -125,8 +136,11 @@ export const Attendance: React.FC = () => {
       
       if (error) throw error
       
+      // 退勤後は現在の出勤記録をクリア
       setCurrentAttendance(null)
-      fetchAttendances()
+      
+      // データを再取得
+      await fetchAttendances()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
@@ -144,11 +158,15 @@ export const Attendance: React.FC = () => {
       
       if (error) throw error
       
+      // 退勤後は現在の出勤記録をクリア
       setCurrentAttendance(null)
+      
       setShowManualInput(false)
       setManualTime('')
       setManualDate('')
-      fetchAttendances()
+      
+      // データを再取得
+      await fetchAttendances()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
@@ -235,8 +253,14 @@ export const Attendance: React.FC = () => {
       
       if (error) throw error
       
-      fetchAttendances()
-      checkCurrentAttendance()
+      // 削除された記録が現在の出勤記録だった場合、状態をクリア
+      if (currentAttendance?.id === attendanceId) {
+        setCurrentAttendance(null)
+      }
+      
+      // データを再取得
+      await fetchAttendances()
+      await checkCurrentAttendance()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
@@ -407,8 +431,24 @@ export const Attendance: React.FC = () => {
           </div>
         </div>
 
+        {/* Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-2">今月の勤務時間</h3>
+            <p className="text-3xl font-bold text-pink-400">0時間</p>
+          </div>
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-2">今月の勤務日数</h3>
+            <p className="text-3xl font-bold text-pink-400">0日</p>
+          </div>
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-2">平均勤務時間</h3>
+            <p className="text-3xl font-bold text-pink-400">0時間</p>
+          </div>
+        </div>
+
         {/* Attendance History */}
-        <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+        <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
           <div className="p-6">
             <h3 className="text-xl font-bold text-white mb-4">今日の勤怠履歴</h3>
             
@@ -451,20 +491,22 @@ export const Attendance: React.FC = () => {
                       <div className="text-sm text-gray-400">
                         {new Date(attendance.created_at).toLocaleDateString('ja-JP')}
                       </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleEditAttendance(attendance)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs transition-colors"
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAttendance(attendance.id)}
-                          className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs transition-colors"
-                        >
-                          削除
-                        </button>
-                      </div>
+                      {isOwner && (
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleEditAttendance(attendance)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                          >
+                            編集
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAttendance(attendance.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

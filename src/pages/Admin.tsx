@@ -51,7 +51,50 @@ export const Admin: React.FC = () => {
   const [dateRange, setDateRange] = useState<'week' | 'month'>('month')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   
-  const { authUser } = useAuthContext()
+  const { authUser, loading: authLoading, isOwner } = useAuthContext()
+
+  // 認証とオーナー権限の確認
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
+          <p className="text-gray-300">認証情報を確認中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!authUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-400 mb-4">アクセス権限がありません</h1>
+          <p className="text-gray-300 mb-6">ログインが必要です。</p>
+          <Link to="/login" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
+            ログインページへ
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isOwner) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-400 mb-4">アクセス権限がありません</h1>
+          <p className="text-gray-300 mb-2">この機能はオーナーのみ利用可能です。</p>
+          <p className="text-sm text-gray-400 mb-6">
+            現在のロール: {authUser.role || '未設定'}
+          </p>
+          <Link to="/" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
+            ホームに戻る
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   useEffect(() => {
     fetchAccessRequests()
@@ -340,7 +383,7 @@ export const Admin: React.FC = () => {
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'requests'
                 ? 'bg-pink-600 text-white'
-                : 'bg-black/20 text-gray-300 hover:bg-black/30'
+                : 'bg-black/30 text-gray-300 hover:bg-black/40 border border-white/20'
             }`}
           >
             アクセス申請
@@ -350,7 +393,7 @@ export const Admin: React.FC = () => {
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'users'
                 ? 'bg-pink-600 text-white'
-                : 'bg-black/20 text-gray-300 hover:bg-black/30'
+                : 'bg-black/30 text-gray-300 hover:bg-black/40 border border-white/20'
             }`}
           >
             ユーザー管理
@@ -360,7 +403,7 @@ export const Admin: React.FC = () => {
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'sales'
                 ? 'bg-pink-600 text-white'
-                : 'bg-black/20 text-gray-300 hover:bg-black/30'
+                : 'bg-black/30 text-gray-300 hover:bg-black/40 border border-white/20'
             }`}
           >
             売上管理
@@ -370,7 +413,7 @@ export const Admin: React.FC = () => {
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'payroll'
                 ? 'bg-pink-600 text-white'
-                : 'bg-black/20 text-gray-300 hover:bg-black/30'
+                : 'bg-black/30 text-gray-300 hover:bg-black/40 border border-white/20'
             }`}
           >
             給与計算
@@ -380,7 +423,7 @@ export const Admin: React.FC = () => {
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'register'
                 ? 'bg-pink-600 text-white'
-                : 'bg-black/20 text-gray-300 hover:bg-black/30'
+                : 'bg-black/30 text-gray-300 hover:bg-black/40 border border-white/20'
             }`}
           >
             レジ管理
@@ -389,7 +432,7 @@ export const Admin: React.FC = () => {
 
         {/* Date Range Controls */}
         {(activeTab === 'sales' || activeTab === 'payroll') && (
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-4 mb-6">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 mb-6">
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex space-x-2">
                 <button
@@ -425,7 +468,7 @@ export const Admin: React.FC = () => {
 
         {/* Access Requests Tab */}
         {activeTab === 'requests' && (
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
             <div className="p-6">
               <h3 className="text-xl font-bold text-white mb-4">承認待ちのアクセス申請</h3>
               
@@ -489,7 +532,7 @@ export const Admin: React.FC = () => {
 
         {/* Users Tab */}
         {activeTab === 'users' && (
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
             <div className="p-6">
               <h3 className="text-xl font-bold text-white mb-4">登録済みユーザー</h3>
               
@@ -545,19 +588,19 @@ export const Admin: React.FC = () => {
           <div className="space-y-6">
             {/* Sales Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-white mb-2">総売上</h3>
                 <p className="text-3xl font-bold text-green-400">
                   ¥{transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
                 </p>
               </div>
-              <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-white mb-2">現金売上</h3>
                 <p className="text-3xl font-bold text-blue-400">
                   ¥{transactions.filter(t => t.payment_method === 'cash').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
                 </p>
               </div>
-              <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-white mb-2">PayPay売上</h3>
                 <p className="text-3xl font-bold text-purple-400">
                   ¥{transactions.filter(t => t.payment_method === 'paypay').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
@@ -566,7 +609,7 @@ export const Admin: React.FC = () => {
             </div>
 
             {/* Sales Details */}
-            <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+            <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
               <div className="p-6">
                 <h3 className="text-xl font-bold text-white mb-4">売上詳細</h3>
                 
@@ -616,13 +659,13 @@ export const Admin: React.FC = () => {
           <div className="space-y-6">
             {/* Payroll Summary */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-white mb-2">総給与支払額</h3>
                 <p className="text-3xl font-bold text-green-400">
                   ¥{attendanceData.reduce((sum, user) => sum + user.total_pay, 0).toLocaleString()}
                 </p>
               </div>
-              <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-white mb-2">総勤務時間</h3>
                 <p className="text-3xl font-bold text-blue-400">
                   {attendanceData.reduce((sum, user) => sum + user.total_hours, 0).toFixed(1)}時間
@@ -631,7 +674,7 @@ export const Admin: React.FC = () => {
             </div>
 
             {/* Individual Payroll */}
-            <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+            <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
               <div className="p-6">
                 <h3 className="text-xl font-bold text-white mb-4">個別給与計算（15分単位切り上げ）</h3>
                 
@@ -711,7 +754,7 @@ export const Admin: React.FC = () => {
 
         {/* Register Tab */}
         {activeTab === 'register' && (
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
             <div className="p-6">
               <h3 className="text-xl font-bold text-white mb-4">レジ管理履歴（過去一週間）</h3>
               

@@ -68,9 +68,9 @@ export const Transactions: React.FC = () => {
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0)
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-pink-400 via-purple-500 to-orange-400 relative overflow-hidden">
       {/* Header */}
-      <header className="bg-black/20 backdrop-blur-sm border-b border-white/10">
+      <header className="relative z-10 bg-black/30 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
@@ -92,18 +92,18 @@ export const Transactions: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-white mb-2">今日の売上合計</h3>
             <p className="text-3xl font-bold text-pink-400">¥{totalAmount.toLocaleString()}</p>
           </div>
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-white mb-2">取引件数</h3>
             <p className="text-3xl font-bold text-pink-400">{transactions.length}件</p>
           </div>
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-6">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-white mb-2">平均単価</h3>
             <p className="text-3xl font-bold text-pink-400">
               ¥{transactions.length > 0 ? Math.round(totalAmount / transactions.length).toLocaleString() : 0}
@@ -180,7 +180,7 @@ export const Transactions: React.FC = () => {
         )}
 
         {/* Transactions List */}
-        <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+        <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
           <div className="p-6">
             <h3 className="text-xl font-bold text-white mb-4">取引履歴</h3>
             
