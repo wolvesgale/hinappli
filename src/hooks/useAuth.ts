@@ -43,7 +43,14 @@ export const useAuth = () => {
 
   const loadUserWithRole = async (user: User) => {
     try {
-      const roleData = await getUserRole(user.email!)
+      // タイムアウト付きでユーザーロールを取得
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 5000)
+      )
+      
+      const rolePromise = getUserRole(user.email!)
+      const roleData = await Promise.race([rolePromise, timeoutPromise]) as any
+      
       setAuthUser({
         user,
         role: roleData?.role || null,
@@ -51,12 +58,14 @@ export const useAuth = () => {
       })
     } catch (error) {
       console.error('Error loading user role:', error)
+      // エラーが発生してもユーザーは認証済みとして扱う
       setAuthUser({
         user,
         role: null,
         displayName: null
       })
     } finally {
+      // 必ずローディングを終了
       setLoading(false)
     }
   }
