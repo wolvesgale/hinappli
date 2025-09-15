@@ -28,14 +28,26 @@ interface UserWithAttendance {
   attendance_records: AttendanceRecord[]
 }
 
+interface RegisterSession {
+  id: string
+  biz_date: string
+  status: string
+  open_photo_url: string | null
+  close_photo_url: string | null
+  close_amount: number | null
+  created_by: string
+  created_at: string
+}
+
 export const Admin: React.FC = () => {
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([])
   const [userRoles, setUserRoles] = useState<UserRole[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [attendanceData, setAttendanceData] = useState<UserWithAttendance[]>([])
+  const [registerSessions, setRegisterSessions] = useState<RegisterSession[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState<'requests' | 'users' | 'sales' | 'payroll'>('requests')
+  const [activeTab, setActiveTab] = useState<'requests' | 'users' | 'sales' | 'payroll' | 'register'>('requests')
   const [dateRange, setDateRange] = useState<'week' | 'month'>('month')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   
@@ -46,6 +58,7 @@ export const Admin: React.FC = () => {
     fetchUserRoles()
     fetchTransactions()
     fetchAttendanceData()
+    fetchRegisterSessions()
   }, [selectedDate, dateRange])
 
   const fetchAccessRequests = async () => {
@@ -99,41 +112,67 @@ export const Admin: React.FC = () => {
   const fetchAttendanceData = async () => {
     try {
       const startDate = getDateRange()
-      
-      // ユーザーロールと勤怠データを取得
-      const { data: users, error: usersError } = await supabase
-        .from('user_roles')
-        .select('*')
-      
-      if (usersError) throw usersError
-
-      const { data: attendances, error: attendanceError } = await supabase
+      const { data: attendanceData, error } = await supabase
         .from('attendances')
-        .select('*')
+        .select(`
+          *,
+          user_roles!inner(email, display_name, role)
+        `)
         .gte('start_time', startDate.start)
         .lte('start_time', startDate.end)
-        .not('end_time', 'is', null)
+        .order('start_time', { ascending: false })
       
-      if (attendanceError) throw attendanceError
+      if (error) throw error
 
-      // ユーザーごとの勤怠データを計算
-      const userAttendanceData: UserWithAttendance[] = users.map(user => {
-        const userAttendances = attendances.filter(att => att.user_id === user.email)
-        const totalHours = calculateTotalHours(userAttendances)
-        const hourlyRate = getHourlyRate(user.role)
-        const totalPay = Math.ceil(totalHours * 4) / 4 * hourlyRate // 15分単位で切り上げ
-
-        return {
-          email: user.email,
-          display_name: user.display_name,
-          role: user.role,
-          total_hours: totalHours,
-          total_pay: totalPay,
-          attendance_records: userAttendances
+      // Group by user and calculate totals
+      const userMap = new Map<string, UserWithAttendance>()
+      
+      attendanceData?.forEach((record: any) => {
+        const userEmail = record.user_roles.email
+        if (!userMap.has(userEmail)) {
+          userMap.set(userEmail, {
+            email: userEmail,
+            display_name: record.user_roles.display_name,
+            role: record.user_roles.role,
+            total_hours: 0,
+            total_pay: 0,
+            attendance_records: []
+          })
+        }
+        
+        const user = userMap.get(userEmail)!
+        user.attendance_records.push(record)
+        
+        if (record.end_time) {
+          const start = new Date(record.start_time)
+          const end = new Date(record.end_time)
+          const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+          user.total_hours += hours
+          user.total_pay += hours * 1000 // 時給1000円として計算
         }
       })
+      
+      setAttendanceData(Array.from(userMap.values()))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    }
+  }
 
-      setAttendanceData(userAttendanceData)
+  const fetchRegisterSessions = async () => {
+    try {
+      // 過去一週間のレジセッションを取得
+      const oneWeekAgo = new Date()
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+      const startDate = oneWeekAgo.toISOString().split('T')[0]
+      
+      const { data, error } = await supabase
+        .from('register_sessions')
+        .select('*')
+        .gte('biz_date', startDate)
+        .order('biz_date', { ascending: false })
+      
+      if (error) throw error
+      setRegisterSessions(data || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
@@ -273,13 +312,7 @@ export const Admin: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 relative overflow-hidden">
-      {/* 星空背景 */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="stars"></div>
-        <div className="twinkling"></div>
-      </div>
-      
+    <div className="min-h-screen bg-gradient-to-br from-pink-400 via-purple-500 to-orange-400 relative overflow-hidden">
       {/* Header */}
       <header className="relative z-10 bg-black/30 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -301,46 +334,56 @@ export const Admin: React.FC = () => {
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Tab Navigation */}
-        <div className="flex space-x-1 mb-8 overflow-x-auto">
+        <div className="flex flex-wrap gap-2 mb-6">
           <button
             onClick={() => setActiveTab('requests')}
-            className={`px-4 py-2 rounded-md font-medium transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'requests'
                 ? 'bg-pink-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                : 'bg-black/20 text-gray-300 hover:bg-black/30'
             }`}
           >
-            アクセス申請 ({accessRequests.length})
+            アクセス申請
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-md font-medium transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'users'
                 ? 'bg-pink-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                : 'bg-black/20 text-gray-300 hover:bg-black/30'
             }`}
           >
-            ユーザー管理 ({userRoles.length})
+            ユーザー管理
           </button>
           <button
             onClick={() => setActiveTab('sales')}
-            className={`px-4 py-2 rounded-md font-medium transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'sales'
                 ? 'bg-pink-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                : 'bg-black/20 text-gray-300 hover:bg-black/30'
             }`}
           >
-            売上推移
+            売上管理
           </button>
           <button
             onClick={() => setActiveTab('payroll')}
-            className={`px-4 py-2 rounded-md font-medium transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'payroll'
                 ? 'bg-pink-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                : 'bg-black/20 text-gray-300 hover:bg-black/30'
             }`}
           >
             給与計算
+          </button>
+          <button
+            onClick={() => setActiveTab('register')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'register'
+                ? 'bg-pink-600 text-white'
+                : 'bg-black/20 text-gray-300 hover:bg-black/30'
+            }`}
+          >
+            レジ管理
           </button>
         </div>
 
@@ -666,12 +709,142 @@ export const Admin: React.FC = () => {
           </div>
         )}
 
-        {error && (
-          <div className="mt-4 p-4 bg-red-900 text-red-300 rounded-lg">
-            {error}
+        {/* Register Tab */}
+        {activeTab === 'register' && (
+          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-white mb-4">レジ管理履歴（過去一週間）</h3>
+              
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-300">読み込み中...</div>
+                </div>
+              ) : registerSessions.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-300">レジセッションの履歴がありません</div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {registerSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className="p-6 bg-gray-800/50 rounded-lg border border-gray-700"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <div className="text-lg font-semibold text-white">
+                            {new Date(session.biz_date).toLocaleDateString('ja-JP', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              weekday: 'short'
+                            })}
+                          </div>
+                          <div className="text-sm text-gray-400 mt-1">
+                            作成者: {session.created_by}
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            session.status === 'open' 
+                              ? 'bg-green-600 text-white' 
+                              : 'bg-red-600 text-white'
+                          }`}>
+                            {session.status === 'open' ? 'オープン中' : 'クローズ済み'}
+                          </span>
+                          {session.close_amount && (
+                            <span className="text-lg font-bold text-green-400">
+                              ¥{session.close_amount.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* オープン写真 */}
+                        {session.open_photo_url && (
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-gray-300">オープン時の写真</h4>
+                            <div className="relative group">
+                              <img
+                                src={session.open_photo_url}
+                                alt="レジオープン時の写真"
+                                className="w-full h-48 object-cover rounded-lg border border-gray-600 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => window.open(session.open_photo_url!, '_blank')}
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors flex items-center justify-center">
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* クローズ写真 */}
+                        {session.close_photo_url && (
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-gray-300">クローズ時の写真</h4>
+                            <div className="relative group">
+                              <img
+                                src={session.close_photo_url}
+                                alt="レジクローズ時の写真"
+                                className="w-full h-48 object-cover rounded-lg border border-gray-600 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => window.open(session.close_photo_url!, '_blank')}
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors flex items-center justify-center">
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 写真がない場合の表示 */}
+                      {!session.open_photo_url && !session.close_photo_url && (
+                        <div className="text-center py-8 text-gray-400">
+                          写真が登録されていません
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
+
+      {error && (
+        <div className="fixed top-4 right-4 z-50 p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 max-w-md">
+          <div className="flex items-start space-x-3">
+            <svg className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-red-300 mb-1">エラーが発生しました</h4>
+              <p className="text-sm text-red-200">{error}</p>
+            </div>
+            <button
+              onClick={() => setError('')}
+              className="text-red-400 hover:text-red-300 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

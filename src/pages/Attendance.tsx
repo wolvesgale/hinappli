@@ -12,7 +12,11 @@ export const Attendance: React.FC = () => {
   const [showManualInput, setShowManualInput] = useState(false)
   const [manualTime, setManualTime] = useState('')
   const [manualDate, setManualDate] = useState('')
-  
+  const [editingAttendance, setEditingAttendance] = useState<AttendanceRecord | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editStartTime, setEditStartTime] = useState('')
+  const [editEndTime, setEditEndTime] = useState('')
+  const [editDate, setEditDate] = useState('')
   const { authUser } = useAuthContext()
   const today = new Date().toISOString().split('T')[0]
 
@@ -169,14 +173,77 @@ export const Attendance: React.FC = () => {
     return `${diffHours}時間${diffMinutes}分`
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 relative overflow-hidden">
-      {/* 星空背景 */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="stars"></div>
-        <div className="twinkling"></div>
-      </div>
+  const handleEditAttendance = (attendance: AttendanceRecord) => {
+    setEditingAttendance(attendance)
+    const startDate = new Date(attendance.start_time)
+    setEditDate(startDate.toISOString().split('T')[0])
+    setEditStartTime(startDate.toTimeString().slice(0, 5))
+    
+    if (attendance.end_time) {
+      const endDate = new Date(attendance.end_time)
+      setEditEndTime(endDate.toTimeString().slice(0, 5))
+    } else {
+      setEditEndTime('')
+    }
+    
+    setShowEditModal(true)
+  }
+
+  const handleUpdateAttendance = async () => {
+    if (!authUser || !editingAttendance || !editDate || !editStartTime) return
+
+    try {
+      const startDateTime = new Date(`${editDate}T${editStartTime}:00`)
+      const updateData: any = {
+        start_time: startDateTime.toISOString()
+      }
+
+      if (editEndTime) {
+        const endDateTime = new Date(`${editDate}T${editEndTime}:00`)
+        updateData.end_time = endDateTime.toISOString()
+      } else {
+        updateData.end_time = null
+      }
+
+      const { error } = await supabase
+        .from('attendances')
+        .update(updateData)
+        .eq('id', editingAttendance.id)
       
+      if (error) throw error
+      
+      setShowEditModal(false)
+      setEditingAttendance(null)
+      setEditDate('')
+      setEditStartTime('')
+      setEditEndTime('')
+      fetchAttendances()
+      checkCurrentAttendance()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    }
+  }
+
+  const handleDeleteAttendance = async (attendanceId: string) => {
+    if (!authUser || !confirm('この勤怠記録を削除しますか？')) return
+
+    try {
+      const { error } = await supabase
+        .from('attendances')
+        .delete()
+        .eq('id', attendanceId)
+      
+      if (error) throw error
+      
+      fetchAttendances()
+      checkCurrentAttendance()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-pink-400 via-purple-500 to-orange-400 relative overflow-hidden">
       {/* Header */}
       <header className="relative z-10 bg-black/30 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -197,11 +264,11 @@ export const Attendance: React.FC = () => {
         </div>
       </header>
 
-      <main className="relative z-10 max-w-md mx-auto px-4 py-8">
+      <main className="relative z-10 max-w-4xl mx-auto px-4 py-8">
         {/* Clock In/Out Section */}
-        <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-8 mb-8">
+        <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6 md:p-8 mb-8">
           <div className="text-center">
-            <div className="text-4xl font-bold text-white mb-4">
+            <div className="text-3xl md:text-4xl font-bold text-white mb-4">
               {new Date().toLocaleTimeString('ja-JP')}
             </div>
             
@@ -210,16 +277,16 @@ export const Attendance: React.FC = () => {
                 <div className="text-green-400 text-lg">
                   出勤中 - {formatTime(currentAttendance.start_time)}から
                 </div>
-                <div className="flex justify-center space-x-4">
+                <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
                   <button
                     onClick={handleClockOut}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-lg text-lg md:text-xl transition-colors"
                   >
                     退勤
                   </button>
                   <button
                     onClick={() => setShowManualInput(!showManualInput)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-lg text-lg md:text-xl transition-colors"
                   >
                     時刻指定退勤
                   </button>
@@ -230,16 +297,16 @@ export const Attendance: React.FC = () => {
                 <div className="text-gray-400 text-lg">
                   未出勤
                 </div>
-                <div className="flex justify-center space-x-4">
+                <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
                   <button
                     onClick={handleClockIn}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-lg text-lg md:text-xl transition-colors"
                   >
                     出勤
                   </button>
                   <button
                     onClick={() => setShowManualInput(!showManualInput)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors"
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-lg text-lg md:text-xl transition-colors"
                   >
                     時刻指定出勤
                   </button>
@@ -358,9 +425,9 @@ export const Attendance: React.FC = () => {
                 {attendances.map((attendance) => (
                   <div
                     key={attendance.id}
-                    className="flex justify-between items-center p-4 bg-gray-800/50 rounded-lg"
+                    className="flex flex-col md:flex-row justify-between items-start md:items-center p-4 bg-gray-800/50 rounded-lg space-y-2 md:space-y-0"
                   >
-                    <div className="flex space-x-6">
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-6 w-full md:w-auto">
                       <div>
                         <div className="text-sm text-gray-400">出勤</div>
                         <div className="text-white font-semibold">
@@ -380,8 +447,24 @@ export const Attendance: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="text-sm text-gray-400">
-                      {new Date(attendance.created_at).toLocaleDateString('ja-JP')}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 w-full md:w-auto">
+                      <div className="text-sm text-gray-400">
+                        {new Date(attendance.created_at).toLocaleDateString('ja-JP')}
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEditAttendance(attendance)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                        >
+                          編集
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAttendance(attendance.id)}
+                          className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                        >
+                          削除
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -391,8 +474,97 @@ export const Attendance: React.FC = () => {
         </div>
 
         {error && (
-          <div className="mt-4 p-4 bg-red-900 text-red-300 rounded-lg">
-            {error}
+          <div className="fixed top-4 right-4 max-w-sm bg-red-900/90 backdrop-blur-sm border border-red-500 text-red-100 rounded-lg p-4 shadow-lg z-50">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium">エラーが発生しました</h3>
+                <div className="mt-1 text-sm">{error}</div>
+              </div>
+              <div className="ml-auto pl-3">
+                <button
+                  onClick={() => setError('')}
+                  className="inline-flex text-red-400 hover:text-red-300"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Modal */}
+        {showEditModal && editingAttendance && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-white mb-4">勤怠記録を編集</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    日付
+                  </label>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    出勤時刻
+                  </label>
+                  <input
+                    type="time"
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    退勤時刻（空白の場合は勤務中）
+                  </label>
+                  <input
+                    type="time"
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  />
+                </div>
+                
+                <div className="flex space-x-4 pt-4">
+                  <button
+                    onClick={handleUpdateAttendance}
+                    disabled={!editDate || !editStartTime}
+                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    更新
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false)
+                      setEditingAttendance(null)
+                      setEditDate('')
+                      setEditStartTime('')
+                      setEditEndTime('')
+                    }}
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>

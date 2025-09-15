@@ -26,7 +26,7 @@ export default function AccessRequestPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-pink-400 via-purple-500 to-orange-400 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-black/20 backdrop-blur-sm rounded-lg p-6 border border-white/10">
         <h1 className="text-2xl font-semibold mb-6 text-white text-center">アクセス申請</h1>
         <form onSubmit={submit} className="space-y-4">
