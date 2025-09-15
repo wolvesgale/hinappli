@@ -43,6 +43,8 @@ export const useAuth = () => {
 
   const loadUserWithRole = async (user: User) => {
     try {
+      console.log('loadUserWithRole called for user:', user.email)
+      
       // タイムアウト付きでユーザーロールを取得
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Timeout')), 5000)
@@ -50,6 +52,8 @@ export const useAuth = () => {
       
       const rolePromise = getUserRole(user.email!)
       const roleData = await Promise.race([rolePromise, timeoutPromise]) as any
+      
+      console.log('Role data received:', roleData)
       
       setAuthUser({
         user,

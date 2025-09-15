@@ -31,11 +31,15 @@ export const signOut = async () => {
 
 // Helper function to get user role
 export const getUserRole = async (email: string) => {
+  console.log('getUserRole called with email:', email)
+  
   const { data, error } = await supabase
     .from('user_roles')
     .select('role, display_name')
     .eq('email', email)
     .single()
+  
+  console.log('getUserRole result:', { data, error })
   
   if (error && error.code !== 'PGRST116') throw error
   return data
