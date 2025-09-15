@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseAdmin } from '../lib/supabase'
 import type { AccessRequest, UserRole } from '../types/database'
 
 interface Transaction {
@@ -143,7 +143,9 @@ export const Admin: React.FC = () => {
 
   const fetchUserRoles = async () => {
     try {
-      const { data, error } = await supabase
+      // Use admin client to bypass RLS for fetching all users
+      const client = supabaseAdmin || supabase
+      const { data, error } = await client
         .from('user_roles')
         .select('*')
         .order('created_at', { ascending: false })
@@ -191,7 +193,8 @@ export const Admin: React.FC = () => {
       if (attendanceError) throw attendanceError
 
       // Then get all user roles
-      const { data: userRoles, error: userRolesError } = await supabase
+      const client = supabaseAdmin || supabase
+      const { data: userRoles, error: userRolesError } = await client
         .from('user_roles')
         .select('*')
       
@@ -472,7 +475,10 @@ export const Admin: React.FC = () => {
     
     try {
       console.log('Deleting transaction:', transactionId)
-      const { error } = await supabase
+      
+      // Use admin client to bypass RLS for delete operations
+      const client = supabaseAdmin || supabase
+      const { error } = await client
         .from('transactions')
         .delete()
         .eq('id', transactionId)
@@ -483,7 +489,8 @@ export const Admin: React.FC = () => {
       }
       
       console.log('Transaction deleted successfully')
-      fetchTransactions()
+      // Refresh the transactions list
+      await fetchTransactions()
     } catch (err) {
       console.error('Delete transaction error:', err)
       setError(err instanceof Error ? err.message : '売上データの削除でエラーが発生しました')
