@@ -14,6 +14,7 @@ export const Home: React.FC = () => {
   const [attendingMembers, setAttendingMembers] = useState<Array<{
     email: string
     display_name: string
+    role: string
     start_time: string
   }>>([])
   const [todaySales, setTodaySales] = useState(0)
@@ -69,33 +70,50 @@ export const Home: React.FC = () => {
           return
         }
 
-        // 各user_idに対してauth.usersからemailを取得し、user_rolesと照合
+        // auth.usersから全ユーザーを取得
+        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+        
+        if (authError) {
+          console.warn('Could not fetch auth users:', authError)
+          setAttendingMembers([])
+          return
+        }
+
+        // user_rolesから全ユーザー情報を取得
+        const { data: userRoles, error: roleError } = await supabase
+          .from('user_roles')
+          .select('email, display_name, role')
+
+        if (roleError) {
+          console.warn('Could not fetch user roles:', roleError)
+          setAttendingMembers([])
+          return
+        }
+
+        // 出勤中のメンバー情報を構築
         const members = []
         for (const attendance of attendances) {
           try {
-            // auth.usersからユーザー情報を取得
-            const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(attendance.user_id)
+            // auth.usersからuser_idに対応するemailを取得
+            const authUser = authUsers.users.find(u => u.id === attendance.user_id)
             
-            if (authError || !authUser.user?.email) {
-              console.warn(`Could not get email for user_id: ${attendance.user_id}`)
+            if (!authUser?.email) {
+              console.warn(`Could not find email for user_id: ${attendance.user_id}`)
               continue
             }
 
-            // user_rolesからdisplay_nameを取得
-            const { data: userRole, error: roleError } = await supabase
-              .from('user_roles')
-              .select('display_name')
-              .eq('email', authUser.user.email)
-              .single()
+            // user_rolesからdisplay_nameとroleを取得
+            const userRole = userRoles?.find(ur => ur.email === authUser.email)
 
-            if (roleError) {
-              console.warn(`Could not get user role for email: ${authUser.user.email}`)
+            if (!userRole) {
+              console.warn(`Could not find user role for email: ${authUser.email}`)
               continue
             }
 
             members.push({
-              email: authUser.user.email,
+              email: authUser.email,
               display_name: userRole.display_name,
+              role: userRole.role,
               start_time: attendance.start_time
             })
           } catch (err) {
@@ -394,28 +412,76 @@ export const Home: React.FC = () => {
                 現在出勤中のメンバーはいません
               </div>
             ) : (
-              <div className="space-y-2">
-                {attendingMembers.map((member, index) => (
-                  <div key={index} className="flex justify-between items-center p-3 bg-gray-800/50 rounded-lg">
-                    <div>
-                      <div className="text-white font-medium">
-                        {member.display_name || member.email}
-                      </div>
-                      <div className="text-gray-400 text-sm">
-                        {member.email}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-green-400 text-sm font-medium">出勤中</div>
-                      <div className="text-gray-400 text-xs">
-                        {new Date(member.start_time).toLocaleTimeString('ja-JP', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}から
-                      </div>
+              <div className="space-y-4">
+                {/* キャストメンバー */}
+                {attendingMembers.filter(member => member.role === 'cast' || member.role === 'owner').length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-pink-400 mb-2 flex items-center">
+                      <span className="w-2 h-2 bg-pink-400 rounded-full mr-2"></span>
+                      キャスト
+                    </h4>
+                    <div className="space-y-2">
+                      {attendingMembers
+                        .filter(member => member.role === 'cast' || member.role === 'owner')
+                        .map((member, index) => (
+                        <div key={index} className="flex justify-between items-center p-3 bg-gray-800/50 rounded-lg">
+                          <div>
+                            <div className="text-white font-medium">
+                              {member.display_name || member.email}
+                            </div>
+                            <div className="text-gray-400 text-sm">
+                              {member.email}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-green-400 text-sm font-medium">出勤中</div>
+                            <div className="text-gray-400 text-xs">
+                              {new Date(member.start_time).toLocaleTimeString('ja-JP', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}から
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
+
+                {/* ドライバーメンバー */}
+                {attendingMembers.filter(member => member.role === 'driver').length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-blue-400 mb-2 flex items-center">
+                      <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                      ドライバー
+                    </h4>
+                    <div className="space-y-2">
+                      {attendingMembers
+                        .filter(member => member.role === 'driver')
+                        .map((member, index) => (
+                        <div key={index} className="flex justify-between items-center p-3 bg-gray-800/50 rounded-lg">
+                          <div>
+                            <div className="text-white font-medium">
+                              {member.display_name || member.email}
+                            </div>
+                            <div className="text-gray-400 text-sm">
+                              {member.email}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-green-400 text-sm font-medium">出勤中</div>
+                            <div className="text-gray-400 text-xs">
+                              {new Date(member.start_time).toLocaleTimeString('ja-JP', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}から
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

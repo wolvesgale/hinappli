@@ -202,20 +202,18 @@ export const Admin: React.FC = () => {
       
       if (attendanceError) throw attendanceError
 
-      // Then get all user roles
-      const client = supabaseAdmin || supabase
-      const { data: userRoles, error: userRolesError } = await client
+      // Get all user roles
+      const { data: userRoles, error: userRolesError } = await supabase
         .from('user_roles')
         .select('*')
       
       if (userRolesError) throw userRolesError
 
-      // Create a map of user_id to user info by matching with auth.users
+      // Get all auth users to map user_id to email
       const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
       
       if (authError) {
         console.warn('Could not fetch auth users, using simplified approach')
-        // Fallback: create empty attendance data
         setAttendanceData([])
         return
       }
@@ -226,7 +224,7 @@ export const Admin: React.FC = () => {
       attendanceData?.forEach((record: any) => {
         // Find the auth user by user_id
         const authUser = authUsers.users.find(u => u.id === record.user_id)
-        if (!authUser) return
+        if (!authUser?.email) return
         
         // Find the user role by email
         const userRole = userRoles?.find(ur => ur.email === authUser.email)
