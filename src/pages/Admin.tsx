@@ -476,9 +476,8 @@ export const Admin: React.FC = () => {
     try {
       console.log('Deleting transaction:', transactionId)
       
-      // Use admin client to bypass RLS for delete operations
-      const client = supabaseAdmin || supabase
-      const { error } = await client
+      // Use regular client with proper authentication
+      const { error } = await supabase
         .from('transactions')
         .delete()
         .eq('id', transactionId)
@@ -1011,16 +1010,8 @@ export const Admin: React.FC = () => {
               </div>
             </div>
 
-            {/* Payroll Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-white mb-2">総給与支払額</h3>
-                <p className="text-3xl font-bold text-green-400">
-                  ¥{attendanceData
-                    .filter(user => selectedUser === 'all' || user.email === selectedUser)
-                    .reduce((sum, user) => sum + user.total_pay, 0).toLocaleString()}
-                </p>
-              </div>
+            {/* Payroll Summary - 時給データ削除 */}
+            <div className="grid grid-cols-1 gap-6">
               <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-white mb-2">総勤務時間（15分単位切り上げ）</h3>
                 <p className="text-3xl font-bold text-blue-400">
@@ -1031,11 +1022,11 @@ export const Admin: React.FC = () => {
               </div>
             </div>
 
-            {/* Individual Payroll */}
+            {/* Individual Payroll - 時給データ削除 */}
             <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
               <div className="p-6">
                 <h3 className="text-xl font-bold text-white mb-4">
-                  個別給与計算（15分単位切り上げ）
+                  個別勤務時間（15分単位切り上げ）
                   {selectedUser !== 'all' && (
                     <span className="text-sm text-gray-400 ml-2">
                       - {users.find(u => u.email === selectedUser)?.display_name}
@@ -1071,9 +1062,6 @@ export const Admin: React.FC = () => {
                             <div className="flex items-center space-x-2 mt-1">
                               <span className={`text-xs px-2 py-1 rounded ${getRoleBadgeColor(user.role)}`}>
                                 {getRoleLabel(user.role)}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                時給: ¥{getHourlyRate(user.role).toLocaleString()}
                               </span>
                             </div>
                           </div>
