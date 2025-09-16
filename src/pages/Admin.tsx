@@ -133,7 +133,7 @@ export const Admin: React.FC = () => {
     
     // 写真クリーンアップを実行
     cleanupOldRegisterPhotos()
-  }, [selectedDate, dateRange])
+  }, [selectedDate, dateRange, payrollSelectedDate, payrollDateRange])
 
   const fetchAccessRequests = async () => {
     try {

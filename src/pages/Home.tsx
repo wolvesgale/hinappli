@@ -58,7 +58,7 @@ export const Home: React.FC = () => {
           .from('attendances')
           .select('user_id, start_time')
           .gte('start_time', `${today}T00:00:00`)
-          .lt('start_time', `${today}T23:59:59`)
+          .lte('start_time', `${today}T23:59:59`)
           .is('end_time', null)
           .order('start_time', { ascending: false })
 
@@ -128,11 +128,15 @@ export const Home: React.FC = () => {
         setTodaySales(todayTotal)
 
         // 今月の売上を取得
+        const currentDate = new Date()
+        const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+        const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+        
         const { data: monthlyTransactions, error: monthlyError } = await supabase
           .from('transactions')
           .select('amount')
-          .gte('created_at', `${currentMonth}-01T00:00:00`)
-          .lt('created_at', `${currentMonth}-32T00:00:00`)
+          .gte('created_at', firstDayOfMonth.toISOString())
+          .lte('created_at', lastDayOfMonth.toISOString())
 
         if (monthlyError) throw monthlyError
 
