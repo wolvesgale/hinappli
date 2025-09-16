@@ -29,13 +29,13 @@ export const Attendance: React.FC = () => {
   }, [authUser])
 
   const fetchAttendances = async () => {
-    if (!authUser) return
+    if (!authUser || !authUser.user.email) return
 
     try {
       const { data, error } = await supabase
         .from('attendances')
         .select('*')
-        .eq('user_id', authUser.user.id)
+        .eq('user_email', authUser.user.email)
         .gte('start_time', `${today}T00:00:00`)
         .order('start_time', { ascending: false })
       
@@ -49,13 +49,13 @@ export const Attendance: React.FC = () => {
   }
 
   const checkCurrentAttendance = async () => {
-    if (!authUser) return
+    if (!authUser || !authUser.user.email) return
 
     try {
       const { data, error } = await supabase
         .from('attendances')
         .select('*')
-        .eq('user_id', authUser.user.id)
+        .eq('user_email', authUser.user.email)
         .is('end_time', null)
         .single()
       
