@@ -72,6 +72,12 @@ export const Admin: React.FC = () => {
     payment_method: 'cash' as 'cash' | 'paypay'
   })
   
+  // Edit user role state
+  const [editingUserRole, setEditingUserRole] = useState<string | null>(null)
+  const [editUserRoleForm, setEditUserRoleForm] = useState({
+    role: 'cast' as 'owner' | 'cast' | 'driver'
+  })
+  
   const { authUser, loading: authLoading, isOwner } = useAuthContext()
 
   // 認証とオーナー権限の確認
@@ -242,7 +248,8 @@ export const Admin: React.FC = () => {
           const end = new Date(record.end_time)
           const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
           user.total_hours += hours
-          user.total_pay += hours * getHourlyRate(userRole.role)
+          // Remove hourly wage calculation
+          user.total_pay = 0
         }
       })
       
@@ -333,14 +340,15 @@ export const Admin: React.FC = () => {
     }, 0)
   }
 
-  const getHourlyRate = (role: string) => {
-    switch (role) {
-      case 'cast': return 1500
-      case 'driver': return 1200
-      case 'owner': return 2000
-      default: return 1000
-    }
-  }
+  // Remove hourly rate function - no longer needed
+  // const getHourlyRate = (role: string) => {
+  //   switch (role) {
+  //     case 'cast': return 1500
+  //     case 'driver': return 1200
+  //     case 'owner': return 2000
+  //     default: return 1000
+  //   }
+  // }
 
   const handleApproveRequest = async (requestId: string, email: string, displayName: string, role: string) => {
     if (!authUser) return
@@ -413,6 +421,32 @@ export const Admin: React.FC = () => {
     }
   }
 
+  const handleEditUserRole = async (email: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ role: editUserRoleForm.role })
+        .eq('email', email)
+      
+      if (error) throw error
+      
+      setEditingUserRole(null)
+      fetchUserRoles()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    }
+  }
+
+  const startEditUserRole = (user: UserRole) => {
+    setEditingUserRole(user.email)
+    setEditUserRoleForm({ role: user.role })
+  }
+
+  const cancelEditUserRole = () => {
+    setEditingUserRole(null)
+    setEditUserRoleForm({ role: 'cast' })
+  }
+
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -476,8 +510,12 @@ export const Admin: React.FC = () => {
     try {
       console.log('Deleting transaction:', transactionId)
       
-      // Use regular client with proper authentication
-      const { error } = await supabase
+      // Use admin client to bypass RLS for delete operations
+      if (!supabaseAdmin) {
+        throw new Error('管理者権限が必要です')
+      }
+      
+      const { error } = await supabaseAdmin
         .from('transactions')
         .delete()
         .eq('id', transactionId)
@@ -727,28 +765,58 @@ export const Admin: React.FC = () => {
                           {user.email}
                         </div>
                         <div className="flex items-center space-x-2 mt-2">
-                          <span className={`text-xs px-2 py-1 rounded ${getRoleBadgeColor(user.role)}`}>
-                            {getRoleLabel(user.role)}
-                          </span>
+                          {editingUserRole === user.email ? (
+                            <div className="flex items-center space-x-2">
+                              <select
+                                value={editUserRoleForm.role}
+                                onChange={(e) => setEditUserRoleForm({ role: e.target.value as 'owner' | 'cast' | 'driver' })}
+                                className="bg-gray-700 text-white px-2 py-1 rounded text-xs"
+                              >
+                                <option value="cast">キャスト</option>
+                                <option value="driver">ドライバー</option>
+                                <option value="owner">オーナー</option>
+                              </select>
+                              <button
+                                onClick={() => handleEditUserRole(user.email)}
+                                className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                              >
+                                保存
+                              </button>
+                              <button
+                                onClick={cancelEditUserRole}
+                                className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                              >
+                                キャンセル
+                              </button>
+                            </div>
+                          ) : (
+                            <span className={`text-xs px-2 py-1 rounded ${getRoleBadgeColor(user.role)}`}>
+                              {getRoleLabel(user.role)}
+                            </span>
+                          )}
                           <span className="text-xs text-gray-400">
                             登録日: {new Date(user.created_at).toLocaleDateString('ja-JP')}
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <div className="text-right">
-                          <div className="text-sm text-gray-400">時給</div>
-                          <div className="text-white font-semibold">
-                            ¥{getHourlyRate(user.role).toLocaleString()}
-                          </div>
-                        </div>
                         {user.email !== authUser?.user.email && (
-                          <button
-                            onClick={() => handleRemoveUser(user.email)}
-                            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
-                          >
-                            削除
-                          </button>
+                          <>
+                            {editingUserRole !== user.email && (
+                              <button
+                                onClick={() => startEditUserRole(user)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                              >
+                                編集
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleRemoveUser(user.email)}
+                              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                            >
+                              削除
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>

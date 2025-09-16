@@ -9,6 +9,8 @@ export const Home: React.FC = () => {
   const [registerStatus, setRegisterStatus] = useState<'closed' | 'open'>('closed')
   const [cashAmount, setCashAmount] = useState('')
   const [paypayAmount, setPaypayAmount] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   // レジセッションの状態を取得
   useEffect(() => {
@@ -45,9 +47,15 @@ export const Home: React.FC = () => {
 
   const handleSignOut = async () => {
     try {
+      setLoading(true)
       await signOut()
+      // Force navigation to login page
+      window.location.href = '/login'
     } catch (error) {
       console.error('Sign out error:', error)
+      setError('ログアウトに失敗しました')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -129,7 +137,8 @@ export const Home: React.FC = () => {
               </span>
               <button
                 onClick={handleSignOut}
-                className="text-gray-300 hover:text-white transition-colors text-sm"
+                className="text-gray-300 hover:text-white transition-colors text-sm px-3 py-2 rounded-md active:bg-white/10 touch-manipulation"
+                style={{ minHeight: '44px', minWidth: '44px' }}
               >
                 ログアウト
               </button>

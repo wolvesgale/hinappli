@@ -22,6 +22,20 @@ export const RegisterManager: React.FC<RegisterManagerProps> = ({
     const fileName = `register_${Date.now()}.${fileExt}`
     const filePath = `register-photos/${fileName}`
 
+    // Check if bucket exists, create if not
+    const { data: buckets } = await supabase.storage.listBuckets()
+    const bucketExists = buckets?.some(bucket => bucket.id === 'register-photos')
+    
+    if (!bucketExists) {
+      const { error: bucketError } = await supabase.storage.createBucket('register-photos', {
+        public: true
+      })
+      if (bucketError) {
+        console.error('Failed to create bucket:', bucketError)
+        throw new Error('ストレージバケットの作成に失敗しました')
+      }
+    }
+
     const { error: uploadError } = await supabase.storage
       .from('register-photos')
       .upload(filePath, file)
