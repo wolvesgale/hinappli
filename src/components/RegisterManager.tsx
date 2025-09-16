@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { useAuthContext } from '../contexts/AuthProvider'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseAdmin } from '../lib/supabase'
 
 interface RegisterManagerProps {
   registerStatus: 'closed' | 'open'
@@ -22,12 +22,15 @@ export const RegisterManager: React.FC<RegisterManagerProps> = ({
     const fileName = `register_${Date.now()}.${fileExt}`
     const filePath = `register-photos/${fileName}`
 
+    // Use admin client for storage operations to avoid RLS issues
+    const adminClient = supabaseAdmin || supabase
+
     // Check if bucket exists, create if not
-    const { data: buckets } = await supabase.storage.listBuckets()
+    const { data: buckets } = await adminClient.storage.listBuckets()
     const bucketExists = buckets?.some(bucket => bucket.id === 'register-photos')
     
     if (!bucketExists) {
-      const { error: bucketError } = await supabase.storage.createBucket('register-photos', {
+      const { error: bucketError } = await adminClient.storage.createBucket('register-photos', {
         public: true
       })
       if (bucketError) {
@@ -36,13 +39,13 @@ export const RegisterManager: React.FC<RegisterManagerProps> = ({
       }
     }
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await adminClient.storage
       .from('register-photos')
       .upload(filePath, file)
 
     if (uploadError) throw uploadError
 
-    const { data } = supabase.storage
+    const { data } = adminClient.storage
       .from('register-photos')
       .getPublicUrl(filePath)
 

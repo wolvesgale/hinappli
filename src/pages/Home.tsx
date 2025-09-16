@@ -11,6 +11,11 @@ export const Home: React.FC = () => {
   const [paypayAmount, setPaypayAmount] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [attendingMembers, setAttendingMembers] = useState<Array<{
+    email: string
+    display_name: string
+    start_time: string
+  }>>([])
 
   // レジセッションの状態を取得
   useEffect(() => {
@@ -42,7 +47,45 @@ export const Home: React.FC = () => {
       }
     }
 
+    const fetchAttendingMembers = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        
+        // 今日出勤中のメンバーを取得（end_timeがnullのもの）
+        const { data: attendances, error } = await supabase
+          .from('attendances')
+          .select(`
+            user_id,
+            start_time,
+            user_roles!inner(email, display_name)
+          `)
+          .gte('start_time', `${today}T00:00:00`)
+          .lt('start_time', `${today}T23:59:59`)
+          .is('end_time', null)
+          .order('start_time', { ascending: false })
+
+        if (error) throw error
+
+        const members = attendances?.map((attendance: any) => ({
+          email: attendance.user_roles.email,
+          display_name: attendance.user_roles.display_name,
+          start_time: attendance.start_time
+        })) || []
+
+        setAttendingMembers(members)
+      } catch (err) {
+        console.error('出勤メンバー取得エラー:', err)
+        setAttendingMembers([])
+      }
+    }
+
     fetchRegisterStatus()
+    fetchAttendingMembers()
+    
+    // 5分ごとに出勤メンバーを更新
+    const interval = setInterval(fetchAttendingMembers, 5 * 60 * 1000)
+    
+    return () => clearInterval(interval)
   }, [authUser])
 
   const handleSignOut = async () => {
@@ -274,9 +317,35 @@ export const Home: React.FC = () => {
         <div className="mt-6">
           <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-white mb-3">出勤メンバー</h3>
-            <div className="text-gray-300 text-sm text-center py-4">
-              現在出勤中のメンバーはいません
-            </div>
+            {attendingMembers.length === 0 ? (
+              <div className="text-gray-300 text-sm text-center py-4">
+                現在出勤中のメンバーはいません
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {attendingMembers.map((member, index) => (
+                  <div key={index} className="flex justify-between items-center p-3 bg-gray-800/50 rounded-lg">
+                    <div>
+                      <div className="text-white font-medium">
+                        {member.display_name || member.email}
+                      </div>
+                      <div className="text-gray-400 text-sm">
+                        {member.email}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-green-400 text-sm font-medium">出勤中</div>
+                      <div className="text-gray-400 text-xs">
+                        {new Date(member.start_time).toLocaleTimeString('ja-JP', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}から
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>

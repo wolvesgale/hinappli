@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { supabase, supabaseAdmin } from '../lib/supabase'
+import { cleanupOldRegisterPhotos } from '../utils/photoCleanup'
 import type { AccessRequest, UserRole } from '../types/database'
 
 interface Transaction {
@@ -129,6 +130,9 @@ export const Admin: React.FC = () => {
     fetchTransactions()
     fetchAttendanceData()
     fetchRegisterSessions()
+    
+    // 写真クリーンアップを実行
+    cleanupOldRegisterPhotos()
   }, [selectedDate, dateRange])
 
   const fetchAccessRequests = async () => {

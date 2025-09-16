@@ -14,14 +14,35 @@ export const Transactions: React.FC = () => {
     memo: ''
   })
   const [error, setError] = useState('')
+  const [registerStatus, setRegisterStatus] = useState<'open' | 'closed'>('closed')
   
   const { authUser } = useAuthContext()
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
     fetchTransactions()
+    fetchRegisterStatus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const fetchRegisterStatus = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('register_sessions')
+        .select('status')
+        .eq('biz_date', today)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      
+      if (error && error.code !== 'PGRST116') throw error
+      const status = data?.status as 'open' | 'closed'
+      setRegisterStatus(status || 'closed')
+    } catch (err) {
+      console.error('Failed to fetch register status:', err)
+      setRegisterStatus('closed')
+    }
+  }
 
   const fetchTransactions = async () => {
     try {
@@ -44,6 +65,12 @@ export const Transactions: React.FC = () => {
     e.preventDefault()
     if (!authUser) return
 
+    // Check if register is open
+    if (registerStatus !== 'open') {
+      setError('レジがオープンされていません。売上を入力するにはレジをオープンしてください。')
+      return
+    }
+
     try {
       const { error } = await supabase
         .from('transactions')
@@ -59,6 +86,7 @@ export const Transactions: React.FC = () => {
       
       setNewTransaction({ amount: '', paymentMethod: 'cash', memo: '' })
       setShowAddForm(false)
+      setError('')
       fetchTransactions()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
@@ -81,12 +109,27 @@ export const Transactions: React.FC = () => {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-gray-300">{today}</span>
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-md transition-colors"
-              >
-                売上追加
-              </button>
+              <div className="flex items-center space-x-2">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  registerStatus === 'open' 
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                    : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                }`}>
+                  レジ{registerStatus === 'open' ? 'オープン' : 'クローズ'}
+                </span>
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  disabled={registerStatus !== 'open'}
+                  className={`px-4 py-2 rounded-md transition-colors ${
+                    registerStatus === 'open'
+                      ? 'bg-pink-600 hover:bg-pink-700 text-white'
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
+                  title={registerStatus !== 'open' ? 'レジをオープンしてから売上を追加してください' : ''}
+                >
+                  売上追加
+                </button>
+              </div>
             </div>
           </div>
         </div>
