@@ -16,6 +16,8 @@ export const Home: React.FC = () => {
     display_name: string
     start_time: string
   }>>([])
+  const [todaySales, setTodaySales] = useState(0)
+  const [monthlySales, setMonthlySales] = useState(0)
 
   // レジセッションの状態を取得
   useEffect(() => {
@@ -54,11 +56,7 @@ export const Home: React.FC = () => {
         // 今日出勤中のメンバーを取得（end_timeがnullのもの）
         const { data: attendances, error } = await supabase
           .from('attendances')
-          .select(`
-            user_id,
-            start_time,
-            user_roles!inner(email, display_name)
-          `)
+          .select('user_id, start_time')
           .gte('start_time', `${today}T00:00:00`)
           .lt('start_time', `${today}T23:59:59`)
           .is('end_time', null)
@@ -66,11 +64,44 @@ export const Home: React.FC = () => {
 
         if (error) throw error
 
-        const members = attendances?.map((attendance: any) => ({
-          email: attendance.user_roles.email,
-          display_name: attendance.user_roles.display_name,
-          start_time: attendance.start_time
-        })) || []
+        if (!attendances || attendances.length === 0) {
+          setAttendingMembers([])
+          return
+        }
+
+        // 各user_idに対してauth.usersからemailを取得し、user_rolesと照合
+        const members = []
+        for (const attendance of attendances) {
+          try {
+            // auth.usersからユーザー情報を取得
+            const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(attendance.user_id)
+            
+            if (authError || !authUser.user?.email) {
+              console.warn(`Could not get email for user_id: ${attendance.user_id}`)
+              continue
+            }
+
+            // user_rolesからdisplay_nameを取得
+            const { data: userRole, error: roleError } = await supabase
+              .from('user_roles')
+              .select('display_name')
+              .eq('email', authUser.user.email)
+              .single()
+
+            if (roleError) {
+              console.warn(`Could not get user role for email: ${authUser.user.email}`)
+              continue
+            }
+
+            members.push({
+              email: authUser.user.email,
+              display_name: userRole.display_name,
+              start_time: attendance.start_time
+            })
+          } catch (err) {
+            console.warn(`Error processing attendance for user_id: ${attendance.user_id}`, err)
+          }
+        }
 
         setAttendingMembers(members)
       } catch (err) {
@@ -79,11 +110,48 @@ export const Home: React.FC = () => {
       }
     }
 
+    const fetchSalesData = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM format
+
+        // 今日の売上を取得
+        const { data: todayTransactions, error: todayError } = await supabase
+          .from('transactions')
+          .select('amount')
+          .gte('created_at', `${today}T00:00:00`)
+          .lt('created_at', `${today}T23:59:59`)
+
+        if (todayError) throw todayError
+
+        const todayTotal = todayTransactions?.reduce((sum, transaction) => sum + transaction.amount, 0) || 0
+        setTodaySales(todayTotal)
+
+        // 今月の売上を取得
+        const { data: monthlyTransactions, error: monthlyError } = await supabase
+          .from('transactions')
+          .select('amount')
+          .gte('created_at', `${currentMonth}-01T00:00:00`)
+          .lt('created_at', `${currentMonth}-32T00:00:00`)
+
+        if (monthlyError) throw monthlyError
+
+        const monthlyTotal = monthlyTransactions?.reduce((sum, transaction) => sum + transaction.amount, 0) || 0
+        setMonthlySales(monthlyTotal)
+      } catch (err) {
+        console.error('売上データ取得エラー:', err)
+      }
+    }
+
     fetchRegisterStatus()
     fetchAttendingMembers()
+    fetchSalesData()
     
-    // 5分ごとに出勤メンバーを更新
-    const interval = setInterval(fetchAttendingMembers, 5 * 60 * 1000)
+    // 5分ごとに出勤メンバーと売上データを更新
+    const interval = setInterval(() => {
+      fetchAttendingMembers()
+      fetchSalesData()
+    }, 5 * 60 * 1000)
     
     return () => clearInterval(interval)
   }, [authUser])
@@ -206,22 +274,22 @@ export const Home: React.FC = () => {
             <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-white mb-4">売上入力</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 {/* 現金 */}
                 <div className="space-y-2">
                   <label className="text-sm text-gray-300">現金</label>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                     <input
                       type="number"
                       value={cashAmount}
                       onChange={(e) => setCashAmount(e.target.value)}
                       placeholder="金額"
-                      className="flex-1 bg-black/30 border border-white/20 rounded px-3 py-2 text-white placeholder-gray-400 text-sm"
+                      className="flex-1 bg-black/30 border border-white/20 rounded px-3 py-2 text-white placeholder-gray-400 text-sm min-w-0"
                     />
                     <button
                       onClick={handleCashSale}
                       disabled={!cashAmount}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-2 rounded text-sm font-medium"
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-6 py-2 rounded text-sm font-medium whitespace-nowrap"
                     >
                       記録
                     </button>
@@ -231,18 +299,18 @@ export const Home: React.FC = () => {
                 {/* PayPay */}
                 <div className="space-y-2">
                   <label className="text-sm text-gray-300">PayPay</label>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                     <input
                       type="number"
                       value={paypayAmount}
                       onChange={(e) => setPaypayAmount(e.target.value)}
                       placeholder="金額"
-                      className="flex-1 bg-black/30 border border-white/20 rounded px-3 py-2 text-white placeholder-gray-400 text-sm"
+                      className="flex-1 bg-black/30 border border-white/20 rounded px-3 py-2 text-white placeholder-gray-400 text-sm min-w-0"
                     />
                     <button
                       onClick={handlePaypaySale}
                       disabled={!paypayAmount}
-                      className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white px-4 py-2 rounded text-sm font-medium"
+                      className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white px-6 py-2 rounded text-sm font-medium whitespace-nowrap"
                     >
                       記録
                     </button>
@@ -257,15 +325,15 @@ export const Home: React.FC = () => {
         <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 text-center">
             <h4 className="text-sm font-semibold text-white mb-1">今日の売上</h4>
-            <p className="text-2xl font-bold text-pink-400">¥0</p>
+            <p className="text-2xl font-bold text-pink-400">¥{todaySales.toLocaleString()}</p>
           </div>
           <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 text-center">
             <h4 className="text-sm font-semibold text-white mb-1">今月の売上</h4>
-            <p className="text-2xl font-bold text-pink-400">¥0</p>
+            <p className="text-2xl font-bold text-pink-400">¥{monthlySales.toLocaleString()}</p>
           </div>
           <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 text-center">
             <h4 className="text-sm font-semibold text-white mb-1">出勤中</h4>
-            <p className="text-2xl font-bold text-pink-400">0人</p>
+            <p className="text-2xl font-bold text-pink-400">{attendingMembers.length}人</p>
           </div>
         </div>
 
