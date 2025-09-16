@@ -55,8 +55,6 @@ export const signOut = async () => {
 
 // Helper function to get user role
 export const getUserRole = async (email: string) => {
-  console.log('getUserRole called with email:', email)
-  
   try {
     // Use admin client to bypass RLS if available, otherwise use regular client
     const client = supabaseAdmin || supabase
@@ -74,9 +72,9 @@ export const getUserRole = async (email: string) => {
     
     const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any
     
-    console.log('getUserRole result:', { data, error })
-    
-    if (error && error.code !== 'PGRST116') throw error
+    if (error && error.code !== 'PGRST116') {
+      throw error
+    }
     return data
   } catch (err) {
     console.error('Error in getUserRole:', err)
