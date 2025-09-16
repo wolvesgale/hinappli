@@ -189,8 +189,11 @@ export const Admin: React.FC = () => {
 
   const fetchAttendanceData = async () => {
     try {
+      console.log('Fetching attendance data for payroll...')
+      
       // Use payroll-specific date range for attendance data
       const startDate = getPayrollDateRange()
+      console.log('Date range:', startDate)
       
       // First, get attendance records
       const { data: attendanceData, error: attendanceError } = await supabase
@@ -201,6 +204,7 @@ export const Admin: React.FC = () => {
         .order('start_time', { ascending: false })
       
       if (attendanceError) throw attendanceError
+      console.log('Attendance records found:', attendanceData?.length || 0)
 
       // Get all user roles
       const { data: userRoles, error: userRolesError } = await supabase
@@ -208,57 +212,86 @@ export const Admin: React.FC = () => {
         .select('*')
       
       if (userRolesError) throw userRolesError
-
-      // Get all auth users to map user_id to email
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
-      
-      if (authError) {
-        console.warn('Could not fetch auth users, using simplified approach')
-        setAttendanceData([])
-        return
-      }
+      console.log('User roles found:', userRoles?.length || 0)
 
       // Create user mapping
       const userMap = new Map<string, UserWithAttendance>()
       
+      // Initialize user map with user_roles data
+      userRoles?.forEach((userRole) => {
+        userMap.set(userRole.email, {
+          email: userRole.email,
+          display_name: userRole.display_name,
+          role: userRole.role,
+          total_hours: 0,
+          total_pay: 0,
+          attendance_records: []
+        })
+      })
+
+      // Get unique user_ids from attendance data
+      const uniqueUserIds = [...new Set(attendanceData?.map(record => record.user_id) || [])]
+      console.log('Unique user IDs in attendance:', uniqueUserIds.length)
+
+      // Create a mapping from user_id to email using Supabase auth
+      const userIdToEmailMap = new Map<string, string>()
+      
+      for (const userId of uniqueUserIds) {
+        try {
+          // Get user info from Supabase auth using the user ID
+          const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId)
+          
+          if (authError) {
+            console.warn(`Could not fetch user info for user_id: ${userId}`, authError)
+            continue
+          }
+          
+          if (authUser?.user?.email) {
+            userIdToEmailMap.set(userId, authUser.user.email)
+            console.log(`Mapped user_id ${userId} to email ${authUser.user.email}`)
+          }
+        } catch (err) {
+          console.warn(`Error fetching user info for user_id: ${userId}`, err)
+        }
+      }
+
+      // Process attendance records
       attendanceData?.forEach((record: any) => {
-        // Find the auth user by user_id
-        const authUser = authUsers.users.find(u => u.id === record.user_id)
-        if (!authUser?.email) return
+        const userEmail = userIdToEmailMap.get(record.user_id)
         
-        // Find the user role by email
-        const userRole = userRoles?.find(ur => ur.email === authUser.email)
-        if (!userRole) return
-        
-        const userEmail = userRole.email
-        if (!userMap.has(userEmail)) {
-          userMap.set(userEmail, {
-            email: userEmail,
-            display_name: userRole.display_name,
-            role: userRole.role,
-            total_hours: 0,
-            total_pay: 0,
-            attendance_records: []
-          })
+        if (!userEmail) {
+          console.warn('No email found for user_id:', record.user_id)
+          return
         }
         
-        const user = userMap.get(userEmail)!
-        user.attendance_records.push(record)
+        const user = userMap.get(userEmail)
         
-        if (record.end_time) {
-          const start = new Date(record.start_time)
-          const end = new Date(record.end_time)
-          const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-          user.total_hours += hours
-          // Remove hourly wage calculation
-          user.total_pay = 0
+        if (user) {
+          user.attendance_records.push(record)
+          
+          if (record.end_time) {
+            const start = new Date(record.start_time)
+            const end = new Date(record.end_time)
+            const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+            user.total_hours += hours
+            // Set total_pay to 0 as requested
+            user.total_pay = 0
+          }
+        } else {
+          console.warn('No user role found for email:', userEmail)
         }
       })
+
+      // Convert map to array and filter out users with no attendance
+      const resultData = Array.from(userMap.values()).filter(user => user.attendance_records.length > 0)
       
-      setAttendanceData(Array.from(userMap.values()))
+      console.log('Final attendance data:', resultData.length, 'users with attendance')
+      setAttendanceData(resultData)
+      
     } catch (err) {
-      console.error('Attendance data fetch error:', err)
-      setError(err instanceof Error ? err.message : '勤怠データの取得でエラーが発生しました')
+      console.error('Error fetching attendance data:', err)
+      setError(err instanceof Error ? err.message : 'エラーが発生しました')
+      setAttendanceData([])
     }
   }
 

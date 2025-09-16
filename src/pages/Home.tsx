@@ -50,11 +50,16 @@ export const Home: React.FC = () => {
       }
     }
 
+    // 出勤メンバーを取得
     const fetchAttendingMembers = async () => {
+      if (!authUser) return
+
       try {
         const today = new Date().toISOString().split('T')[0]
         
-        // 今日出勤中のメンバーを取得（end_timeがnullのもの）
+        console.log('Fetching attendances for date:', today)
+        
+        // 今日の出勤中（end_timeがnull）のメンバーを取得
         const { data: attendances, error } = await supabase
           .from('attendances')
           .select('user_id, start_time')
@@ -62,38 +67,76 @@ export const Home: React.FC = () => {
           .lte('start_time', `${today}T23:59:59`)
           .is('end_time', null)
           .order('start_time', { ascending: false })
-
+    
+        console.log('Raw attendance data:', attendances)
+        console.log('Attendance query error:', error)
+    
         if (error) throw error
-
+    
         if (!attendances || attendances.length === 0) {
+          console.log('No active attendances found')
           setAttendingMembers([])
           return
         }
-
-        // auth.usersから全ユーザーを取得
-        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
-        
-        if (authError) {
-          console.warn('Could not fetch auth users:', authError)
-          setAttendingMembers([])
-          return
-        }
-
+    
         // user_rolesから全ユーザー情報を取得
         const { data: userRoles, error: roleError } = await supabase
           .from('user_roles')
           .select('email, display_name, role')
-
+    
+        console.log('User roles data:', userRoles)
+        console.log('User roles error:', roleError)
+    
         if (roleError) {
           console.warn('Could not fetch user roles:', roleError)
           setAttendingMembers([])
           return
         }
-
+    
+        // auth.usersから全ユーザーを取得（user_idとemailのマッピング用）
+        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+        
+        console.log('Auth users data:', authUsers?.users?.length, 'users')
+        console.log('Auth users error:', authError)
+        
+        if (authError) {
+          console.warn('Could not fetch auth users, trying alternative approach:', authError)
+          
+          // 代替案: attendancesのuser_idを使って個別にユーザー情報を取得
+          const members: Array<{
+            email: string
+            display_name: string
+            role: string
+            start_time: string
+          }> = []
+          for (const attendance of attendances) {
+            try {
+              // user_rolesテーブルから該当するユーザーを探す（user_idベースでは無理なので、別のアプローチが必要）
+              console.log('Processing attendance for user_id:', attendance.user_id)
+              
+              // この時点では、user_idからemailを取得する方法がないため、
+              // attendancesテーブルにemailカラムを追加するか、別の解決策が必要
+              
+            } catch (err) {
+              console.warn(`Error processing attendance for user_id: ${attendance.user_id}`, err)
+            }
+          }
+          
+          setAttendingMembers(members)
+          return
+        }
+    
         // 出勤中のメンバー情報を構築
-        const members = []
+        const members: Array<{
+          email: string
+          display_name: string
+          role: string
+          start_time: string
+        }> = []
         for (const attendance of attendances) {
           try {
+            console.log('Processing attendance:', attendance)
+            
             // auth.usersからuser_idに対応するemailを取得
             const authUser = authUsers.users.find(u => u.id === attendance.user_id)
             
@@ -101,15 +144,19 @@ export const Home: React.FC = () => {
               console.warn(`Could not find email for user_id: ${attendance.user_id}`)
               continue
             }
-
+    
+            console.log('Found auth user:', authUser.email)
+    
             // user_rolesからdisplay_nameとroleを取得
             const userRole = userRoles?.find(ur => ur.email === authUser.email)
-
+    
             if (!userRole) {
               console.warn(`Could not find user role for email: ${authUser.email}`)
               continue
             }
-
+    
+            console.log('Found user role:', userRole)
+    
             members.push({
               email: authUser.email,
               display_name: userRole.display_name,
@@ -120,7 +167,8 @@ export const Home: React.FC = () => {
             console.warn(`Error processing attendance for user_id: ${attendance.user_id}`, err)
           }
         }
-
+    
+        console.log('Final members array:', members)
         setAttendingMembers(members)
       } catch (err) {
         console.error('出勤メンバー取得エラー:', err)
