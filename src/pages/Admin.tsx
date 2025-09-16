@@ -15,6 +15,7 @@ interface Transaction {
 interface AttendanceRecord {
   id: string
   user_id: string
+  user_email?: string // 新しく追加されたフィールド（オプショナル）
   start_time: string
   end_time: string | null
   created_at: string
@@ -189,16 +190,16 @@ export const Admin: React.FC = () => {
 
   const fetchAttendanceData = async () => {
     try {
-      console.log('Fetching attendance data for payroll...')
+      console.log('Fetching attendance data for payroll with email-based approach...')
       
       // Use payroll-specific date range for attendance data
       const startDate = getPayrollDateRange()
       console.log('Date range:', startDate)
       
-      // First, get attendance records
+      // Get attendance records with user_email
       const { data: attendanceData, error: attendanceError } = await supabase
         .from('attendances')
-        .select('*')
+        .select('*, user_email')
         .gte('start_time', startDate.start)
         .lte('start_time', startDate.end)
         .order('start_time', { ascending: false })
@@ -206,15 +207,24 @@ export const Admin: React.FC = () => {
       if (attendanceError) throw attendanceError
       console.log('Attendance records found:', attendanceData?.length || 0)
 
-      // Get all user roles
+      // Filter out records without user_email (old records)
+      const validAttendanceData = attendanceData?.filter(record => record.user_email) || []
+      console.log('Valid attendance records with user_email:', validAttendanceData.length)
+
+      // Get unique emails from attendance data
+      const uniqueEmails = [...new Set(validAttendanceData.map(record => record.user_email))]
+      console.log('Unique emails in attendance:', uniqueEmails.length)
+
+      // Get user roles for the emails found in attendance
       const { data: userRoles, error: userRolesError } = await supabase
         .from('user_roles')
         .select('*')
+        .in('email', uniqueEmails)
       
       if (userRolesError) throw userRolesError
       console.log('User roles found:', userRoles?.length || 0)
 
-      // Create user mapping
+      // Create user mapping based on email
       const userMap = new Map<string, UserWithAttendance>()
       
       // Initialize user map with user_roles data
@@ -229,42 +239,9 @@ export const Admin: React.FC = () => {
         })
       })
 
-      // Get unique user_ids from attendance data
-      const uniqueUserIds = [...new Set(attendanceData?.map(record => record.user_id) || [])]
-      console.log('Unique user IDs in attendance:', uniqueUserIds.length)
-
-      // Create a mapping from user_id to email using Supabase auth
-      const userIdToEmailMap = new Map<string, string>()
-      
-      for (const userId of uniqueUserIds) {
-        try {
-          // Get user info from Supabase auth using the user ID
-          const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId)
-          
-          if (authError) {
-            console.warn(`Could not fetch user info for user_id: ${userId}`, authError)
-            continue
-          }
-          
-          if (authUser?.user?.email) {
-            userIdToEmailMap.set(userId, authUser.user.email)
-            console.log(`Mapped user_id ${userId} to email ${authUser.user.email}`)
-          }
-        } catch (err) {
-          console.warn(`Error fetching user info for user_id: ${userId}`, err)
-        }
-      }
-
-      // Process attendance records
-      attendanceData?.forEach((record: any) => {
-        const userEmail = userIdToEmailMap.get(record.user_id)
-        
-        if (!userEmail) {
-          console.warn('No email found for user_id:', record.user_id)
-          return
-        }
-        
-        const user = userMap.get(userEmail)
+      // Process attendance records using email directly
+      validAttendanceData.forEach((record: any) => {
+        const user = userMap.get(record.user_email)
         
         if (user) {
           user.attendance_records.push(record)
@@ -278,7 +255,7 @@ export const Admin: React.FC = () => {
             user.total_pay = 0
           }
         } else {
-          console.warn('No user role found for email:', userEmail)
+          console.warn('No user role found for email:', record.user_email)
         }
       })
 

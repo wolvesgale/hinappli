@@ -55,119 +55,68 @@ export const Home: React.FC = () => {
       if (!authUser) return
 
       try {
-        const today = new Date().toISOString().split('T')[0]
+        console.log('Fetching attending members with email-based approach')
         
-        console.log('Fetching attendances for date:', today)
-        
-        // 今日の出勤中（end_timeがnull）のメンバーを取得
-        const { data: attendances, error } = await supabase
+        // 出勤中（end_timeがnull）のメンバーを取得
+        const { data: attendances, error: attendanceError } = await supabase
           .from('attendances')
-          .select('user_id, start_time')
-          .gte('start_time', `${today}T00:00:00`)
-          .lte('start_time', `${today}T23:59:59`)
+          .select('user_email, start_time')
           .is('end_time', null)
           .order('start_time', { ascending: false })
     
-        console.log('Raw attendance data:', attendances)
-        console.log('Attendance query error:', error)
+        console.log('Active attendances:', attendances)
+        console.log('Attendance query error:', attendanceError)
     
-        if (error) throw error
+        if (attendanceError) throw attendanceError
     
         if (!attendances || attendances.length === 0) {
           console.log('No active attendances found')
           setAttendingMembers([])
           return
         }
-    
-        // user_rolesから全ユーザー情報を取得
-        const { data: userRoles, error: roleError } = await supabase
-          .from('user_roles')
-          .select('email, display_name, role')
-    
-        console.log('User roles data:', userRoles)
-        console.log('User roles error:', roleError)
-    
-        if (roleError) {
-          console.warn('Could not fetch user roles:', roleError)
+
+        // user_emailが設定されていない古いレコードをフィルタリング
+        const validAttendances = attendances.filter(a => a.user_email)
+        
+        if (validAttendances.length === 0) {
+          console.log('No attendances with user_email found')
           setAttendingMembers([])
           return
         }
-    
-        // auth.usersから全ユーザーを取得（user_idとemailのマッピング用）
-        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+
+        // 出勤中のメンバーのemailリストを取得
+        const emails = [...new Set(validAttendances.map(a => a.user_email).filter(Boolean))]
+        console.log('Unique emails:', emails)
+
+        // user_rolesから役割情報をまとめて取得（emailベース）
+        const { data: roles, error: roleError } = await supabase
+          .from('user_roles')
+          .select('email, display_name, role')
+          .in('email', emails)
+
+        console.log('User roles:', roles)
+        console.log('Role query error:', roleError)
+
+        if (roleError) throw roleError
+
+        // emailをキーとしたマップを作成
+        const roleMap = new Map(roles?.map(r => [r.email, r]) || [])
         
-        console.log('Auth users data:', authUsers?.users?.length, 'users')
-        console.log('Auth users error:', authError)
-        
-        if (authError) {
-          console.warn('Could not fetch auth users, trying alternative approach:', authError)
-          
-          // 代替案: attendancesのuser_idを使って個別にユーザー情報を取得
-          const members: Array<{
-            email: string
-            display_name: string
-            role: string
-            start_time: string
-          }> = []
-          for (const attendance of attendances) {
-            try {
-              // user_rolesテーブルから該当するユーザーを探す（user_idベースでは無理なので、別のアプローチが必要）
-              console.log('Processing attendance for user_id:', attendance.user_id)
-              
-              // この時点では、user_idからemailを取得する方法がないため、
-              // attendancesテーブルにemailカラムを追加するか、別の解決策が必要
-              
-            } catch (err) {
-              console.warn(`Error processing attendance for user_id: ${attendance.user_id}`, err)
-            }
+        // 出勤メンバー情報を構築
+        const members = validAttendances.map(attendance => {
+          const role = roleMap.get(attendance.user_email) || { 
+            display_name: attendance.user_email, 
+            role: 'cast' 
           }
           
-          setAttendingMembers(members)
-          return
-        }
-    
-        // 出勤中のメンバー情報を構築
-        const members: Array<{
-          email: string
-          display_name: string
-          role: string
-          start_time: string
-        }> = []
-        for (const attendance of attendances) {
-          try {
-            console.log('Processing attendance:', attendance)
-            
-            // auth.usersからuser_idに対応するemailを取得
-            const authUser = authUsers.users.find(u => u.id === attendance.user_id)
-            
-            if (!authUser?.email) {
-              console.warn(`Could not find email for user_id: ${attendance.user_id}`)
-              continue
-            }
-    
-            console.log('Found auth user:', authUser.email)
-    
-            // user_rolesからdisplay_nameとroleを取得
-            const userRole = userRoles?.find(ur => ur.email === authUser.email)
-    
-            if (!userRole) {
-              console.warn(`Could not find user role for email: ${authUser.email}`)
-              continue
-            }
-    
-            console.log('Found user role:', userRole)
-    
-            members.push({
-              email: authUser.email,
-              display_name: userRole.display_name,
-              role: userRole.role,
-              start_time: attendance.start_time
-            })
-          } catch (err) {
-            console.warn(`Error processing attendance for user_id: ${attendance.user_id}`, err)
+          return {
+            email: attendance.user_email,
+            display_name: role.display_name || attendance.user_email,
+            role: role.role || 'cast',
+            start_time: attendance.start_time,
           }
-        }
-    
+        })
+
         console.log('Final members array:', members)
         setAttendingMembers(members)
       } catch (err) {

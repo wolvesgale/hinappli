@@ -76,6 +76,7 @@ export const Attendance: React.FC = () => {
         .from('attendances')
         .insert({
           user_id: authUser.user.id,
+          user_email: authUser.user.email, // ★追加: user_emailも保存
           start_time: now.toISOString()
         })
         .select()
@@ -102,6 +103,7 @@ export const Attendance: React.FC = () => {
         .from('attendances')
         .insert({
           user_id: authUser.user.id,
+          user_email: authUser.user.email, // ★追加: user_emailも保存
           start_time: dateTime.toISOString()
         })
         .select()
