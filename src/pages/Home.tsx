@@ -16,6 +16,7 @@ export const Home: React.FC = () => {
     display_name: string
     role: string
     start_time: string
+    companion_checked: boolean // ★追加: 同伴出勤フラグ
   }>>([])
   const [todaySales, setTodaySales] = useState(0)
   const [monthlySales, setMonthlySales] = useState(0)
@@ -32,7 +33,7 @@ export const Home: React.FC = () => {
           .select('*')
           .eq('biz_date', today)
           .eq('status', 'open')
-          .single()
+          .maybeSingle()
 
         if (error && error.code !== 'PGRST116') {
           console.error('レジ状態取得エラー:', error)
@@ -57,10 +58,10 @@ export const Home: React.FC = () => {
       try {
         console.log('Fetching attending members with email-based approach')
         
-        // 出勤中（end_timeがnull）のメンバーを取得
+        // 出勤中（end_timeがnull）のメンバーを取得（同伴情報も含む）
         const { data: attendances, error: attendanceError } = await supabase
           .from('attendances')
-          .select('user_email, start_time')
+          .select('user_email, start_time, companion_checked') // ★追加: companion_checkedを取得
           .is('end_time', null)
           .order('start_time', { ascending: false })
     
@@ -102,7 +103,7 @@ export const Home: React.FC = () => {
         // emailをキーとしたマップを作成
         const roleMap = new Map(roles?.map(r => [r.email, r]) || [])
         
-        // 出勤メンバー情報を構築
+        // 出勤メンバー情報を構築（同伴情報も含む）
         const members = validAttendances.map(attendance => {
           const role = roleMap.get(attendance.user_email) || { 
             display_name: attendance.user_email, 
@@ -114,6 +115,7 @@ export const Home: React.FC = () => {
             display_name: role.display_name || attendance.user_email,
             role: role.role || 'cast',
             start_time: attendance.start_time,
+            companion_checked: attendance.companion_checked || false // ★追加: 同伴出勤フラグ
           }
         })
 
@@ -423,8 +425,14 @@ export const Home: React.FC = () => {
                         .map((member, index) => (
                         <div key={index} className="flex justify-between items-center p-3 bg-gray-800/50 rounded-lg">
                           <div>
-                            <div className="text-white font-medium">
+                            <div className="text-white font-medium flex items-center">
                               {member.display_name || member.email}
+                              {/* ★追加: 同伴出勤表示 */}
+                              {member.companion_checked && (
+                                <span className="ml-2 px-2 py-1 bg-pink-600 text-white text-xs rounded-full">
+                                  同伴
+                                </span>
+                              )}
                             </div>
                             <div className="text-gray-400 text-sm">
                               {member.email}

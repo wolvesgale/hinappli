@@ -33,7 +33,7 @@ export const Transactions: React.FC = () => {
         .eq('biz_date', today)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
       
       if (error && error.code !== 'PGRST116') throw error
       const status = data?.status as 'open' | 'closed'

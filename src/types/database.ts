@@ -130,22 +130,28 @@ export type Database = {
         Row: {
           id: string
           user_id: string
+          user_email: string
           start_time: string
           end_time: string | null
+          companion_checked: boolean
           created_at: string
         }
         Insert: {
           id?: string
           user_id: string
+          user_email: string
           start_time: string
           end_time?: string | null
+          companion_checked?: boolean
           created_at?: string
         }
         Update: {
           id?: string
           user_id?: string
+          user_email?: string
           start_time?: string
           end_time?: string | null
+          companion_checked?: boolean
           created_at?: string
         }
         Relationships: []

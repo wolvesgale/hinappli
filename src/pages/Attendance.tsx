@@ -17,6 +17,10 @@ export const Attendance: React.FC = () => {
   const [editStartTime, setEditStartTime] = useState('')
   const [editEndTime, setEditEndTime] = useState('')
   const [editDate, setEditDate] = useState('')
+  // ★追加: 同伴出勤チェック用のstate
+  const [companionChecked, setCompanionChecked] = useState(false)
+  // ★追加: 同伴出勤回数のstate
+  const [companionCount, setCompanionCount] = useState(0)
   const { authUser, isOwner } = useAuthContext()
   const today = new Date().toISOString().split('T')[0]
 
@@ -24,10 +28,36 @@ export const Attendance: React.FC = () => {
     if (authUser) {
       fetchAttendances()
       checkCurrentAttendance()
+      if (isOwner) {
+        fetchCompanionCount()
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser])
+  }, [authUser, isOwner])
 
+  // ★追加: 同伴出勤回数を取得する関数
+  const fetchCompanionCount = async () => {
+    if (!authUser || !authUser.user.email) return
+
+    try {
+      const now = new Date()
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
+      const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+      
+      const { data, error } = await supabase
+        .from('attendances')
+        .select('id')
+        .eq('user_email', authUser.user.email)
+        .eq('companion_checked', true)
+        .gte('start_time', start)
+        .lt('start_time', next)
+      
+      if (error) throw error
+      setCompanionCount(data?.length || 0)
+    } catch (err) {
+      console.error('Error fetching companion count:', err)
+    }
+  }
   const fetchAttendances = async () => {
     if (!authUser || !authUser.user.email) return
 
@@ -57,35 +87,38 @@ export const Attendance: React.FC = () => {
         .select('*')
         .eq('user_email', authUser.user.email)
         .is('end_time', null)
-        .single()
+        .maybeSingle()
       
-      if (error && error.code !== 'PGRST116') throw error
-      setCurrentAttendance(data)
+      if (error) throw error
+      setCurrentAttendance(data ?? null)
     } catch (err) {
       console.error('Error checking current attendance:', err)
+      setCurrentAttendance(null)
     }
   }
 
   const handleClockIn = async () => {
-    if (!authUser) return
+    if (!authUser || !authUser.user.email) return
 
     try {
-      // 分数単位の現在時刻を取得
-      const now = new Date()
       const { data, error } = await supabase
         .from('attendances')
         .insert({
           user_id: authUser.user.id,
-          user_email: authUser.user.email, // ★追加: user_emailも保存
-          start_time: now.toISOString()
+          user_email: authUser.user.email,
+          start_time: new Date().toISOString(),
+          companion_checked: companionChecked // ★追加: 同伴チェック状態を保存
         })
         .select()
-        .single()
+        .maybeSingle()
       
       if (error) throw error
       
       // 新しい出勤記録を即座に状態に反映
       setCurrentAttendance(data)
+      
+      // 同伴チェックをリセット
+      setCompanionChecked(false)
       
       // データを再取得
       await fetchAttendances()
@@ -103,11 +136,12 @@ export const Attendance: React.FC = () => {
         .from('attendances')
         .insert({
           user_id: authUser.user.id,
-          user_email: authUser.user.email, // ★追加: user_emailも保存
-          start_time: dateTime.toISOString()
+          user_email: authUser.user.email,
+          start_time: dateTime.toISOString(),
+          companion_checked: companionChecked // ★追加: 同伴チェック状態を保存
         })
         .select()
-        .single()
+        .maybeSingle()
       
       if (error) throw error
       
@@ -117,6 +151,7 @@ export const Attendance: React.FC = () => {
       setShowManualInput(false)
       setManualTime('')
       setManualDate('')
+      setCompanionChecked(false) // 同伴チェックもリセット
       
       // データを再取得
       await fetchAttendances()
@@ -323,6 +358,21 @@ export const Attendance: React.FC = () => {
                 <div className="text-gray-400 text-lg">
                   未出勤
                 </div>
+                
+                {/* ★追加: 同伴チェックボックス */}
+                <div className="flex items-center justify-center space-x-3 mb-4">
+                  <input
+                    type="checkbox"
+                    id="companionCheck"
+                    checked={companionChecked}
+                    onChange={(e) => setCompanionChecked(e.target.checked)}
+                    className="w-5 h-5 text-pink-600 bg-gray-700 border-gray-600 rounded focus:ring-pink-500 focus:ring-2"
+                  />
+                  <label htmlFor="companionCheck" className="text-white text-lg font-medium">
+                    同伴出勤
+                  </label>
+                </div>
+                
                 <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
                   <button
                     onClick={handleClockIn}
@@ -345,6 +395,22 @@ export const Attendance: React.FC = () => {
               <div className="mt-6 p-6 bg-gray-800/50 rounded-lg">
                 <h3 className="text-lg font-semibold text-white mb-4">時刻を指定</h3>
                 <div className="space-y-4">
+                  {/* ★追加: 手動入力時の同伴チェックボックス */}
+                  {!currentAttendance && (
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        id="manualCompanionCheck"
+                        checked={companionChecked}
+                        onChange={(e) => setCompanionChecked(e.target.checked)}
+                        className="w-4 h-4 text-pink-600 bg-gray-700 border-gray-600 rounded focus:ring-pink-500 focus:ring-2"
+                      />
+                      <label htmlFor="manualCompanionCheck" className="text-white font-medium">
+                        同伴出勤
+                      </label>
+                    </div>
+                  )}
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       日付
@@ -390,6 +456,7 @@ export const Attendance: React.FC = () => {
                         setShowManualInput(false)
                         setManualTime('')
                         setManualDate('')
+                        setCompanionChecked(false) // 同伴チェックもリセット
                       }}
                       className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
                     >
@@ -444,8 +511,12 @@ export const Attendance: React.FC = () => {
             <p className="text-3xl font-bold text-pink-400">0日</p>
           </div>
           <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-white mb-2">平均勤務時間</h3>
-            <p className="text-3xl font-bold text-pink-400">0時間</p>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              {isOwner ? '今月の同伴出勤回数' : '平均勤務時間'}
+            </h3>
+            <p className="text-3xl font-bold text-pink-400">
+              {isOwner ? `${companionCount}回` : '0時間'}
+            </p>
           </div>
         </div>
 
@@ -486,6 +557,17 @@ export const Attendance: React.FC = () => {
                         <div className="text-sm text-gray-400">勤務時間</div>
                         <div className="text-white font-semibold">
                           {calculateWorkTime(attendance.start_time, attendance.end_time)}
+                        </div>
+                      </div>
+                      {/* ★追加: 同伴出勤表示 */}
+                      <div>
+                        <div className="text-sm text-gray-400">同伴</div>
+                        <div className="text-white font-semibold">
+                          {attendance.companion_checked ? (
+                            <span className="text-pink-400">✓ 同伴</span>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
                         </div>
                       </div>
                     </div>
