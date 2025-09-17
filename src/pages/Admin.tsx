@@ -80,6 +80,20 @@ export const Admin: React.FC = () => {
     role: 'cast' as 'owner' | 'cast' | 'driver'
   })
   
+  // Edit attendance state
+  const [editingAttendance, setEditingAttendance] = useState<string | null>(null)
+  const [editAttendanceForm, setEditAttendanceForm] = useState({
+    start_time: '',
+    end_time: ''
+  })
+
+  // Edit register session state
+  const [editingRegisterSession, setEditingRegisterSession] = useState<string | null>(null)
+  const [editRegisterSessionForm, setEditRegisterSessionForm] = useState({
+    biz_date: '',
+    close_amount: 0
+  })
+
   const { authUser, loading: authLoading, isOwner } = useAuthContext()
 
   // 認証とオーナー権限の確認
@@ -543,6 +557,116 @@ export const Admin: React.FC = () => {
     } catch (err) {
       console.error('Delete transaction error:', err)
       setError(err instanceof Error ? err.message : '売上データの削除でエラーが発生しました')
+    }
+  }
+
+  // Attendance management functions
+  const handleEditAttendance = (record: AttendanceRecord) => {
+    setEditingAttendance(record.id)
+    setEditAttendanceForm({
+      start_time: new Date(record.start_time).toISOString().slice(0, 16),
+      end_time: record.end_time ? new Date(record.end_time).toISOString().slice(0, 16) : ''
+    })
+  }
+
+  const handleUpdateAttendance = async (attendanceId: string) => {
+    try {
+      if (!supabaseAdmin) {
+        throw new Error('管理者権限が必要です')
+      }
+
+      const updateData: any = {
+        start_time: new Date(editAttendanceForm.start_time).toISOString()
+      }
+
+      if (editAttendanceForm.end_time) {
+        updateData.end_time = new Date(editAttendanceForm.end_time).toISOString()
+      }
+
+      const { error } = await supabaseAdmin
+        .from('attendances')
+        .update(updateData)
+        .eq('id', attendanceId)
+      
+      if (error) throw error
+      
+      setEditingAttendance(null)
+      fetchAttendanceData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '勤怠データの更新でエラーが発生しました')
+    }
+  }
+
+  const handleDeleteAttendance = async (attendanceId: string) => {
+    if (!confirm('この勤怠記録を削除しますか？この操作は取り消せません。')) return
+    
+    try {
+      if (!supabaseAdmin) {
+        throw new Error('管理者権限が必要です')
+      }
+      
+      const { error } = await supabaseAdmin
+        .from('attendances')
+        .delete()
+        .eq('id', attendanceId)
+      
+      if (error) throw error
+      
+      fetchAttendanceData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '勤怠データの削除でエラーが発生しました')
+    }
+  }
+
+  const handleEditRegisterSession = (session: RegisterSession) => {
+    setEditingRegisterSession(session.id)
+    setEditRegisterSessionForm({
+      biz_date: session.biz_date,
+      close_amount: session.close_amount || 0
+    })
+  }
+
+  const handleUpdateRegisterSession = async (sessionId: string) => {
+    try {
+      if (!supabaseAdmin) {
+        throw new Error('管理者権限が必要です')
+      }
+
+      const { error } = await supabaseAdmin
+        .from('register_sessions')
+        .update({
+          biz_date: editRegisterSessionForm.biz_date,
+          close_amount: editRegisterSessionForm.close_amount
+        })
+        .eq('id', sessionId)
+      
+      if (error) throw error
+      
+      setEditingRegisterSession(null)
+      fetchRegisterSessions()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'レジセッションの更新でエラーが発生しました')
+    }
+  }
+
+  const handleDeleteRegisterSession = async (sessionId: string) => {
+    if (!confirm('このレジセッションを削除しますか？この操作は取り消せません。')) return
+    
+    try {
+      if (!supabaseAdmin) {
+        throw new Error('管理者権限が必要です')
+      }
+      
+      const { error } = await supabaseAdmin
+        .from('register_sessions')
+        .delete()
+        .eq('id', sessionId)
+      
+      if (error) throw error
+      
+      fetchRegisterSessions()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'レジセッションの削除でエラーが発生しました')
     }
   }
 
@@ -1159,22 +1283,87 @@ export const Admin: React.FC = () => {
                         {/* Attendance Details */}
                         <div className="mt-3 pt-3 border-t border-gray-700">
                           <div className="text-sm text-gray-400 mb-2">勤怠詳細:</div>
-                          <div className="space-y-1">
+                          <div className="space-y-2">
                             {user.attendance_records.map((record) => (
-                              <div key={record.id} className="flex justify-between text-xs text-gray-300">
-                                <span>
-                                  {new Date(record.start_time).toLocaleDateString('ja-JP')}
-                                </span>
-                                <span>
-                                  {new Date(record.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} - 
-                                  {record.end_time ? new Date(record.end_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '勤務中'}
-                                </span>
-                                <span>
-                                  {record.end_time ? 
-                                    `${((new Date(record.end_time).getTime() - new Date(record.start_time).getTime()) / (1000 * 60 * 60)).toFixed(1)}h` 
-                                    : '勤務中'
-                                  }
-                                </span>
+                              <div key={record.id} className="bg-gray-700/50 rounded p-3">
+                                {editingAttendance === record.id ? (
+                                  // Edit mode
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-xs text-gray-400 mb-1">出勤時間</label>
+                                        <input
+                                          type="datetime-local"
+                                          value={editAttendanceForm.start_time}
+                                          onChange={(e) => setEditAttendanceForm({
+                                            ...editAttendanceForm,
+                                            start_time: e.target.value
+                                          })}
+                                          className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-400 mb-1">退勤時間</label>
+                                        <input
+                                          type="datetime-local"
+                                          value={editAttendanceForm.end_time}
+                                          onChange={(e) => setEditAttendanceForm({
+                                            ...editAttendanceForm,
+                                            end_time: e.target.value
+                                          })}
+                                          className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="flex space-x-2">
+                                      <button
+                                        onClick={() => handleUpdateAttendance(record.id)}
+                                        className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                                      >
+                                        保存
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingAttendance(null)}
+                                        className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                                      >
+                                        キャンセル
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  // View mode
+                                  <div className="flex justify-between items-center">
+                                    <div className="flex space-x-4 text-xs text-gray-300">
+                                      <span>
+                                        {new Date(record.start_time).toLocaleDateString('ja-JP')}
+                                      </span>
+                                      <span>
+                                        {new Date(record.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} - 
+                                        {record.end_time ? new Date(record.end_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '勤務中'}
+                                      </span>
+                                      <span>
+                                        {record.end_time ? 
+                                          `${((new Date(record.end_time).getTime() - new Date(record.start_time).getTime()) / (1000 * 60 * 60)).toFixed(1)}h` 
+                                          : '勤務中'
+                                        }
+                                      </span>
+                                    </div>
+                                    <div className="flex space-x-1">
+                                      <button
+                                        onClick={() => handleEditAttendance(record)}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                                      >
+                                        編集
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteAttendance(record.id)}
+                                        className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                                      >
+                                        削除
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1209,38 +1398,99 @@ export const Admin: React.FC = () => {
                       key={session.id}
                       className="p-6 bg-gray-800/50 rounded-lg border border-gray-700"
                     >
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <div className="text-lg font-semibold text-white">
-                            {new Date(session.biz_date).toLocaleDateString('ja-JP', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              weekday: 'short'
-                            })}
+                      {editingRegisterSession === session.id ? (
+                        // Edit mode
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm text-gray-400 mb-2">営業日</label>
+                              <input
+                                type="date"
+                                value={editRegisterSessionForm.biz_date}
+                                onChange={(e) => setEditRegisterSessionForm({
+                                  ...editRegisterSessionForm,
+                                  biz_date: e.target.value
+                                })}
+                                className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm text-gray-400 mb-2">クローズ金額</label>
+                              <input
+                                type="number"
+                                value={editRegisterSessionForm.close_amount}
+                                onChange={(e) => setEditRegisterSessionForm({
+                                  ...editRegisterSessionForm,
+                                  close_amount: Number(e.target.value)
+                                })}
+                                className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-400 mt-1">
-                            作成者: {session.created_by}
-                          </div>
-                          <div className="text-sm text-gray-400">
-                            作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleUpdateRegisterSession(session.id)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
+                            >
+                              保存
+                            </button>
+                            <button
+                              onClick={() => setEditingRegisterSession(null)}
+                              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition-colors"
+                            >
+                              キャンセル
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            session.status === 'open' 
-                              ? 'bg-green-600 text-white' 
-                              : 'bg-red-600 text-white'
-                          }`}>
-                            {session.status === 'open' ? 'オープン中' : 'クローズ済み'}
-                          </span>
-                          {session.close_amount && (
-                            <span className="text-lg font-bold text-green-400">
-                              ¥{session.close_amount.toLocaleString()}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      ) : (
+                        // Display mode
+                        <>
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <div className="text-lg font-semibold text-white">
+                                {new Date(session.biz_date).toLocaleDateString('ja-JP', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  weekday: 'short'
+                                })}
+                              </div>
+                              <div className="text-sm text-gray-400 mt-1">
+                                作成者: {session.created_by}
+                              </div>
+                              <div className="text-sm text-gray-400">
+                                作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                session.status === 'open' 
+                                  ? 'bg-green-600 text-white' 
+                                  : 'bg-red-600 text-white'
+                              }`}>
+                                {session.status === 'open' ? 'オープン中' : 'クローズ済み'}
+                              </span>
+                              {session.close_amount && (
+                                <span className="text-lg font-bold text-green-400">
+                                  ¥{session.close_amount.toLocaleString()}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => handleEditRegisterSession(session)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                              >
+                                編集
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRegisterSession(session.id)}
+                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                              >
+                                削除
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* オープン写真 */}
