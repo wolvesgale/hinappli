@@ -1244,29 +1244,29 @@ export const Admin: React.FC = () => {
 
             {/* Individual Cast Sales Cards */}
             <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-white mb-4">個別売上</h3>
+              <div className="p-4 sm:p-6">
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-4">個別売上</h3>
                 
                 {loading ? (
                   <div className="text-center py-8">
                     <div className="text-gray-300">読み込み中...</div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 mb-6">
                     {/* 共通売上カード */}
-                    <div className="bg-gray-800/50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-lg font-semibold text-white">共通売上</h4>
-                        <span className="text-2xl">🏪</span>
+                    <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center justify-between mb-2 sm:mb-3">
+                        <h4 className="text-sm sm:text-lg font-semibold text-white">共通売上</h4>
+                        <span className="text-lg sm:text-2xl">🏪</span>
                       </div>
-                      <div className="space-y-2">
-                        <div className="text-2xl font-bold text-green-400">
+                      <div className="space-y-1 sm:space-y-2">
+                        <div className="text-lg sm:text-2xl font-bold text-green-400">
                           ¥{transactions
                             .filter(t => !t.attributed_to_email)
                             .reduce((sum, t) => sum + t.amount, 0)
                             .toLocaleString()}
                         </div>
-                        <div className="text-sm text-gray-400">
+                        <div className="text-xs sm:text-sm text-gray-400">
                           {transactions.filter(t => !t.attributed_to_email).length}件の取引
                         </div>
                       </div>
@@ -1280,16 +1280,16 @@ export const Admin: React.FC = () => {
                         const totalAmount = castTransactions.reduce((sum, t) => sum + t.amount, 0)
                         
                         return (
-                          <div key={cast.email} className="bg-gray-800/50 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="text-lg font-semibold text-white">{cast.display_name}</h4>
-                              <span className="text-2xl">👤</span>
+                          <div key={cast.email} className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
+                            <div className="flex items-center justify-between mb-2 sm:mb-3">
+                              <h4 className="text-sm sm:text-lg font-semibold text-white truncate pr-2">{cast.display_name}</h4>
+                              <span className="text-lg sm:text-2xl">👤</span>
                             </div>
-                            <div className="space-y-2">
-                              <div className="text-2xl font-bold text-pink-400">
+                            <div className="space-y-1 sm:space-y-2">
+                              <div className="text-lg sm:text-2xl font-bold text-pink-400">
                                 ¥{totalAmount.toLocaleString()}
                               </div>
-                              <div className="text-sm text-gray-400">
+                              <div className="text-xs sm:text-sm text-gray-400">
                                 {castTransactions.length}件の取引
                               </div>
                               {castTransactions.length > 0 && (

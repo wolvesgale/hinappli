@@ -155,11 +155,5 @@ CREATE POLICY "Authenticated users can view register sessions" ON register_sessi
 CREATE POLICY "Authenticated users can insert register sessions" ON register_sessions
     FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Owners can manage register sessions" ON register_sessions
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM user_roles 
-            WHERE email = auth.jwt() ->> 'email' 
-            AND role = 'owner'
-        )
-    );
+CREATE POLICY "Authenticated users can update register sessions" ON register_sessions
+    FOR UPDATE USING (auth.role() = 'authenticated');

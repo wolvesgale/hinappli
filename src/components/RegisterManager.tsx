@@ -88,7 +88,7 @@ export const RegisterManager: React.FC<RegisterManagerProps> = ({
         onStatusChange('open')
       } else {
         // レジクローズ
-        const { error } = await supabase
+        const { data: updateResult, error } = await supabase
           .from('register_sessions')
           .update({
             status: 'closed',
@@ -97,8 +97,15 @@ export const RegisterManager: React.FC<RegisterManagerProps> = ({
           })
           .eq('biz_date', today)
           .eq('status', 'open')
+          .select()
 
         if (error) throw error
+        
+        // 更新されたレコードが存在するかチェック
+        if (!updateResult || updateResult.length === 0) {
+          throw new Error('該当するオープン中のレジセッションが見つかりません')
+        }
+        
         onStatusChange('closed')
       }
 

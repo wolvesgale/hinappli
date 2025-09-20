@@ -12,7 +12,7 @@ export const Transactions: React.FC = () => {
     amount: '',
     paymentMethod: 'cash',
     memo: '',
-    attributedToEmails: [] as string[]
+    attributedToEmail: '' // Single selection instead of array
   })
   const [error, setError] = useState('')
   const [registerStatus, setRegisterStatus] = useState<'open' | 'closed'>('closed')
@@ -96,42 +96,20 @@ export const Transactions: React.FC = () => {
     }
 
     try {
-      // If no attribution is selected, create a single transaction
-      if (newTransaction.attributedToEmails.length === 0) {
-        const { error } = await supabase
-          .from('transactions')
-          .insert({
-            biz_date: today,
-            amount: parseFloat(newTransaction.amount),
-            payment_method: newTransaction.paymentMethod,
-            memo: newTransaction.memo || null,
-            attributed_to_email: null,
-            created_by: authUser.user.email!
-          })
-        
-        if (error) throw error
-      } else {
-        // Create separate transactions for each attributed cast member
-        const amount = parseFloat(newTransaction.amount)
-        const splitAmount = Math.floor(amount / newTransaction.attributedToEmails.length)
-        
-        const transactions = newTransaction.attributedToEmails.map((email) => ({
+      const { error } = await supabase
+        .from('transactions')
+        .insert({
           biz_date: today,
-          amount: splitAmount,
+          amount: parseFloat(newTransaction.amount),
           payment_method: newTransaction.paymentMethod,
           memo: newTransaction.memo || null,
-          attributed_to_email: email,
+          attributed_to_email: newTransaction.attributedToEmail || null,
           created_by: authUser.user.email!
-        }))
-        
-        const { error } = await supabase
-          .from('transactions')
-          .insert(transactions)
-        
-        if (error) throw error
-      }
+        })
       
-      setNewTransaction({ amount: '', paymentMethod: 'cash', memo: '', attributedToEmails: [] })
+      if (error) throw error
+      
+      setNewTransaction({ amount: '', paymentMethod: 'cash', memo: '', attributedToEmail: '' })
       setShowAddForm(false)
       setError('')
       fetchTransactions()
@@ -140,18 +118,11 @@ export const Transactions: React.FC = () => {
     }
   }
 
-  const handleAttributionChange = (email: string, checked: boolean) => {
-    if (checked) {
-      setNewTransaction({
-        ...newTransaction,
-        attributedToEmails: [...newTransaction.attributedToEmails, email]
-      })
-    } else {
-      setNewTransaction({
-        ...newTransaction,
-        attributedToEmails: newTransaction.attributedToEmails.filter(e => e !== email)
-      })
-    }
+  const handleAttributionChange = (email: string) => {
+    setNewTransaction({
+      ...newTransaction,
+      attributedToEmail: email
+    })
   }
 
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0)
@@ -270,29 +241,38 @@ export const Transactions: React.FC = () => {
                     売上帰属選択（任意）
                   </label>
                   <div className="text-xs text-gray-400 mb-2">
-                    選択したキャストに売上を帰属させます。複数選択時は金額を等分します。
+                    売上を帰属させるキャストを選択してください。
                   </div>
                   <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {/* Default "None" option */}
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="attribution"
+                        value=""
+                        checked={newTransaction.attributedToEmail === ''}
+                        onChange={() => handleAttributionChange('')}
+                        className="text-pink-600 focus:ring-pink-500 focus:ring-offset-gray-800"
+                      />
+                      <span className="text-sm text-gray-300">無し</span>
+                    </label>
                     {castMembers.map((cast) => (
                       <label key={cast.email} className="flex items-center space-x-2 cursor-pointer">
                         <input
-                          type="checkbox"
-                          checked={newTransaction.attributedToEmails.includes(cast.email)}
-                          onChange={(e) => handleAttributionChange(cast.email, e.target.checked)}
-                          className="rounded border-gray-600 text-pink-600 focus:ring-pink-500 focus:ring-offset-gray-800"
+                          type="radio"
+                          name="attribution"
+                          value={cast.email}
+                          checked={newTransaction.attributedToEmail === cast.email}
+                          onChange={() => handleAttributionChange(cast.email)}
+                          className="text-pink-600 focus:ring-pink-500 focus:ring-offset-gray-800"
                         />
                         <span className="text-sm text-gray-300">{cast.display_name}</span>
                       </label>
                     ))}
                   </div>
-                  {newTransaction.attributedToEmails.length > 0 && (
+                  {newTransaction.attributedToEmail && (
                     <div className="text-xs text-pink-400 mt-2">
-                      選択中: {newTransaction.attributedToEmails.length}名
-                      {newTransaction.amount && (
-                        <span className="ml-2">
-                          (1人あたり: ¥{Math.floor(parseFloat(newTransaction.amount) / newTransaction.attributedToEmails.length).toLocaleString()})
-                        </span>
-                      )}
+                      選択中: {getCastDisplayName(newTransaction.attributedToEmail)}
                     </div>
                   )}
                 </div>
