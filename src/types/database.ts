@@ -103,6 +103,7 @@ export type Database = {
           payment_method: string
           amount: number
           memo: string | null
+          attributed_to_email: string | null
           created_by: string
           created_at: string
         }
@@ -112,6 +113,7 @@ export type Database = {
           payment_method: string
           amount: number
           memo?: string | null
+          attributed_to_email?: string | null
           created_by: string
           created_at?: string
         }
@@ -121,6 +123,7 @@ export type Database = {
           payment_method?: string
           amount?: number
           memo?: string | null
+          attributed_to_email?: string | null
           created_by?: string
           created_at?: string
         }

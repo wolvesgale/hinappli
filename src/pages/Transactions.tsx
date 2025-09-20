@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { supabase } from '../lib/supabase'
-import type { Transaction } from '../types/database'
+import type { Transaction, UserRole } from '../types/database'
 
 export const Transactions: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -11,10 +11,12 @@ export const Transactions: React.FC = () => {
   const [newTransaction, setNewTransaction] = useState({
     amount: '',
     paymentMethod: 'cash',
-    memo: ''
+    memo: '',
+    attributedToEmails: [] as string[]
   })
   const [error, setError] = useState('')
   const [registerStatus, setRegisterStatus] = useState<'open' | 'closed'>('closed')
+  const [castMembers, setCastMembers] = useState<UserRole[]>([])
   
   const { authUser } = useAuthContext()
   const today = new Date().toISOString().split('T')[0]
@@ -22,8 +24,24 @@ export const Transactions: React.FC = () => {
   useEffect(() => {
     fetchTransactions()
     fetchRegisterStatus()
+    fetchCastMembers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const fetchCastMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('*')
+        .eq('role', 'cast')
+        .order('display_name', { ascending: true })
+      
+      if (error) throw error
+      setCastMembers(data || [])
+    } catch (err) {
+      console.error('Failed to fetch cast members:', err)
+    }
+  }
 
   const fetchRegisterStatus = async () => {
     try {
@@ -61,6 +79,12 @@ export const Transactions: React.FC = () => {
     }
   }
 
+  const getCastDisplayName = (email: string | null) => {
+    if (!email) return null
+    const cast = castMembers.find(c => c.email === email)
+    return cast?.display_name || email
+  }
+
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!authUser) return
@@ -72,24 +96,61 @@ export const Transactions: React.FC = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('transactions')
-        .insert({
+      // If no attribution is selected, create a single transaction
+      if (newTransaction.attributedToEmails.length === 0) {
+        const { error } = await supabase
+          .from('transactions')
+          .insert({
+            biz_date: today,
+            amount: parseFloat(newTransaction.amount),
+            payment_method: newTransaction.paymentMethod,
+            memo: newTransaction.memo || null,
+            attributed_to_email: null,
+            created_by: authUser.user.email!
+          })
+        
+        if (error) throw error
+      } else {
+        // Create separate transactions for each attributed cast member
+        const amount = parseFloat(newTransaction.amount)
+        const splitAmount = Math.floor(amount / newTransaction.attributedToEmails.length)
+        
+        const transactions = newTransaction.attributedToEmails.map((email) => ({
           biz_date: today,
-          amount: parseFloat(newTransaction.amount),
+          amount: splitAmount,
           payment_method: newTransaction.paymentMethod,
           memo: newTransaction.memo || null,
+          attributed_to_email: email,
           created_by: authUser.user.email!
-        })
+        }))
+        
+        const { error } = await supabase
+          .from('transactions')
+          .insert(transactions)
+        
+        if (error) throw error
+      }
       
-      if (error) throw error
-      
-      setNewTransaction({ amount: '', paymentMethod: 'cash', memo: '' })
+      setNewTransaction({ amount: '', paymentMethod: 'cash', memo: '', attributedToEmails: [] })
       setShowAddForm(false)
       setError('')
       fetchTransactions()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    }
+  }
+
+  const handleAttributionChange = (email: string, checked: boolean) => {
+    if (checked) {
+      setNewTransaction({
+        ...newTransaction,
+        attributedToEmails: [...newTransaction.attributedToEmails, email]
+      })
+    } else {
+      setNewTransaction({
+        ...newTransaction,
+        attributedToEmails: newTransaction.attributedToEmails.filter(e => e !== email)
+      })
     }
   }
 
@@ -157,7 +218,7 @@ export const Transactions: React.FC = () => {
         {/* Add Transaction Form */}
         {showAddForm && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl font-bold text-white mb-4">売上追加</h3>
               <form onSubmit={handleAddTransaction} className="space-y-4">
                 <div>
@@ -202,6 +263,40 @@ export const Transactions: React.FC = () => {
                     placeholder="備考"
                   />
                 </div>
+                
+                {/* Sales Attribution Section */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    売上帰属選択（任意）
+                  </label>
+                  <div className="text-xs text-gray-400 mb-2">
+                    選択したキャストに売上を帰属させます。複数選択時は金額を等分します。
+                  </div>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {castMembers.map((cast) => (
+                      <label key={cast.email} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newTransaction.attributedToEmails.includes(cast.email)}
+                          onChange={(e) => handleAttributionChange(cast.email, e.target.checked)}
+                          className="rounded border-gray-600 text-pink-600 focus:ring-pink-500 focus:ring-offset-gray-800"
+                        />
+                        <span className="text-sm text-gray-300">{cast.display_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {newTransaction.attributedToEmails.length > 0 && (
+                    <div className="text-xs text-pink-400 mt-2">
+                      選択中: {newTransaction.attributedToEmails.length}名
+                      {newTransaction.amount && (
+                        <span className="ml-2">
+                          (1人あたり: ¥{Math.floor(parseFloat(newTransaction.amount) / newTransaction.attributedToEmails.length).toLocaleString()})
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex space-x-3">
                   <button
                     type="submit"
@@ -242,7 +337,7 @@ export const Transactions: React.FC = () => {
                     key={transaction.id}
                     className="flex justify-between items-center p-4 bg-gray-800/50 rounded-lg"
                   >
-                    <div>
+                    <div className="flex-1">
                       <div className="text-white font-semibold">
                         ¥{transaction.amount.toLocaleString()}
                       </div>
@@ -254,9 +349,18 @@ export const Transactions: React.FC = () => {
                           {transaction.memo}
                         </div>
                       )}
+                      {transaction.attributed_to_email && (
+                        <div className="text-sm text-pink-400 mt-1 flex items-center">
+                          <span className="mr-1">👤</span>
+                          帰属: {getCastDisplayName(transaction.attributed_to_email)}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-sm text-gray-400">
-                      {transaction.created_by}
+                    <div className="text-sm text-gray-400 text-right">
+                      <div>{transaction.created_by}</div>
+                      {!transaction.attributed_to_email && (
+                        <div className="text-xs text-gray-500 mt-1">共通売上</div>
+                      )}
                     </div>
                   </div>
                 ))}

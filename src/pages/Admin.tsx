@@ -10,6 +10,7 @@ interface Transaction {
   amount: number
   payment_method: string
   created_at: string
+  attributed_to_email?: string | null
 }
 
 interface AttendanceRecord {
@@ -1238,6 +1239,70 @@ export const Admin: React.FC = () => {
                 <p className="text-3xl font-bold text-purple-400">
                   ¥{transactions.filter(t => t.payment_method === 'paypay').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
                 </p>
+              </div>
+            </div>
+
+            {/* Individual Cast Sales Cards */}
+            <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
+              <div className="p-6">
+                <h3 className="text-xl font-bold text-white mb-4">個別売上</h3>
+                
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-300">読み込み中...</div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                    {/* 共通売上カード */}
+                    <div className="bg-gray-800/50 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-lg font-semibold text-white">共通売上</h4>
+                        <span className="text-2xl">🏪</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-2xl font-bold text-green-400">
+                          ¥{transactions
+                            .filter(t => !t.attributed_to_email)
+                            .reduce((sum, t) => sum + t.amount, 0)
+                            .toLocaleString()}
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          {transactions.filter(t => !t.attributed_to_email).length}件の取引
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 各キャストの売上カード */}
+                    {users
+                      .filter(user => user.role === 'cast')
+                      .map(cast => {
+                        const castTransactions = transactions.filter(t => t.attributed_to_email === cast.email)
+                        const totalAmount = castTransactions.reduce((sum, t) => sum + t.amount, 0)
+                        
+                        return (
+                          <div key={cast.email} className="bg-gray-800/50 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-lg font-semibold text-white">{cast.display_name}</h4>
+                              <span className="text-2xl">👤</span>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="text-2xl font-bold text-pink-400">
+                                ¥{totalAmount.toLocaleString()}
+                              </div>
+                              <div className="text-sm text-gray-400">
+                                {castTransactions.length}件の取引
+                              </div>
+                              {castTransactions.length > 0 && (
+                                <div className="text-xs text-gray-500">
+                                  平均: ¥{Math.round(totalAmount / castTransactions.length).toLocaleString()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
               </div>
             </div>
 
