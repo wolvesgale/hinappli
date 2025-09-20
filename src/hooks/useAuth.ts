@@ -122,17 +122,24 @@ export const useAuth = () => {
 
   const signOut = async () => {
     try {
+      console.log('Starting sign out process...')
+      
       // ユーザー状態をクリア
       setAuthUser(null)
       setLoading(false)
       
-      // Supabaseからサインアウト
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      // Supabaseからサインアウト（scope: 'local'を指定してローカルセッションのみクリア）
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
+      if (error) {
+        console.error('Supabase sign out error:', error)
+        // エラーが発生してもローカル状態はクリアする
+      }
       
       // ローカルストレージをクリア（念のため）
       localStorage.clear()
       sessionStorage.clear()
+      
+      console.log('Sign out completed successfully')
       
     } catch (error) {
       console.error('Sign out error:', error)

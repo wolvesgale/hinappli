@@ -263,8 +263,11 @@ export const Admin: React.FC = () => {
       const startDate = getPayrollDateRange()
       console.log('Date range:', startDate)
       
+      // Use admin client to bypass RLS for attendance data
+      const client = supabaseAdmin || supabase
+      
       // Get attendance records with user_email
-      const { data: attendanceData, error: attendanceError } = await supabase
+      const { data: attendanceData, error: attendanceError } = await client
         .from('attendances')
         .select('*, user_email, companion_checked')
         .gte('start_time', startDate.start)
@@ -282,8 +285,8 @@ export const Admin: React.FC = () => {
       const uniqueEmails = [...new Set(validAttendanceData.map(record => record.user_email))]
       console.log('Unique emails in attendance:', uniqueEmails.length)
 
-      // Get user roles for the emails found in attendance
-      const { data: userRoles, error: userRolesError } = await supabase
+      // Get user roles for the emails found in attendance using admin client
+      const { data: userRoles, error: userRolesError } = await client
         .from('user_roles')
         .select('*')
         .in('email', uniqueEmails)
@@ -502,7 +505,9 @@ export const Admin: React.FC = () => {
 
   const handleEditUserRole = async (email: string) => {
     try {
-      const { error } = await supabase
+      // Use admin client to bypass RLS for role updates
+      const client = supabaseAdmin || supabase
+      const { error } = await client
         .from('user_roles')
         .update({ role: editUserRoleForm.role })
         .eq('email', email)

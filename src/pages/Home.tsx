@@ -180,11 +180,15 @@ export const Home: React.FC = () => {
   const handleSignOut = async () => {
     try {
       setLoading(true)
+      console.log('Home: Starting logout process...')
+      
       await signOut()
+      
+      console.log('Home: Logout successful, redirecting...')
       // React Routerを使用してナビゲーション
       window.location.replace('/login')
     } catch (error) {
-      console.error('Sign out error:', error)
+      console.error('Home: Sign out error:', error)
       setError('ログアウトに失敗しました')
       // エラーが発生してもログインページにリダイレクト
       window.location.replace('/login')
