@@ -81,7 +81,6 @@ export const RegisterManager: React.FC<RegisterManagerProps> = ({
             biz_date: today,
             status: 'open',
             open_photo_url: photoUrl,
-            close_amount: parseFloat(amount),
             created_by: authUser.user.email!
           })
 
