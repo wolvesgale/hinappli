@@ -181,11 +181,13 @@ export const Home: React.FC = () => {
     try {
       setLoading(true)
       await signOut()
-      // Force navigation to login page
-      window.location.href = '/login'
+      // React Routerを使用してナビゲーション
+      window.location.replace('/login')
     } catch (error) {
       console.error('Sign out error:', error)
       setError('ログアウトに失敗しました')
+      // エラーが発生してもログインページにリダイレクト
+      window.location.replace('/login')
     } finally {
       setLoading(false)
     }

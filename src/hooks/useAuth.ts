@@ -121,8 +121,26 @@ export const useAuth = () => {
   }
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    try {
+      // ユーザー状態をクリア
+      setAuthUser(null)
+      setLoading(false)
+      
+      // Supabaseからサインアウト
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      
+      // ローカルストレージをクリア（念のため）
+      localStorage.clear()
+      sessionStorage.clear()
+      
+    } catch (error) {
+      console.error('Sign out error:', error)
+      // エラーが発生してもユーザー状態はクリアする
+      setAuthUser(null)
+      setLoading(false)
+      throw error
+    }
   }
 
   const submitAccessRequest = async (email: string, displayName: string, requestedRole: AppRole) => {
