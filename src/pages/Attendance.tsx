@@ -85,6 +85,56 @@ export const Attendance: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, isOwner])
 
+  // 12時の強制退勤処理
+  useEffect(() => {
+    if (!currentAttendance) return
+
+    const checkAutoCheckout = () => {
+      const now = new Date()
+      const currentHour = now.getHours()
+      const currentMinute = now.getMinutes()
+      
+      // 12時00分になったら強制退勤
+      if (currentHour === 12 && currentMinute === 0) {
+        handleAutoCheckout()
+      }
+    }
+
+    // 1分ごとにチェック
+    const interval = setInterval(checkAutoCheckout, 60000)
+    
+    return () => clearInterval(interval)
+  }, [currentAttendance])
+
+  const handleAutoCheckout = async () => {
+    if (!authUser || !currentAttendance) return
+
+    try {
+      // 12時00分で強制退勤
+      const noonTime = new Date()
+      noonTime.setHours(12, 0, 0, 0)
+      
+      const { error } = await supabase
+        .from('attendances')
+        .update({ end_time: noonTime.toISOString() })
+        .eq('id', currentAttendance.id)
+      
+      if (error) throw error
+      
+      // 退勤後は現在の出勤記録をクリア
+      setCurrentAttendance(null)
+      
+      // データを再取得
+      await fetchAttendances()
+      
+      // ユーザーに通知
+      alert('12時になりましたので、自動的に退勤処理を行いました。')
+    } catch (err) {
+      console.error('Auto checkout error:', err)
+      setError(err instanceof Error ? err.message : '自動退勤処理でエラーが発生しました')
+    }
+  }
+
   // ★追加: 同伴出勤回数を取得する関数
   const fetchCompanionCount = async () => {
     if (!authUser || !authUser.user.email) return
@@ -162,6 +212,26 @@ export const Attendance: React.FC = () => {
     }
 
     try {
+      // 同日中の出勤記録をチェック
+      const today = new Date()
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
+      
+      const { data: existingAttendance, error: checkError } = await supabase
+        .from('attendances')
+        .select('id')
+        .eq('user_email', authUser.user.email)
+        .gte('start_time', startOfDay)
+        .lt('start_time', endOfDay)
+        .limit(1)
+      
+      if (checkError) throw checkError
+      
+      if (existingAttendance && existingAttendance.length > 0) {
+        setError('本日は既に出勤済みです。1日1回のみ出勤可能です。')
+        return
+      }
+
       // 写真をアップロード
       const photoUrl = await uploadPhoto(attendancePhoto)
       if (!photoUrl) {
@@ -190,19 +260,46 @@ export const Attendance: React.FC = () => {
       setCompanionChecked(false)
       setAttendancePhoto(null)
       setPhotoPreview(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
       
       // データを再取得
       await fetchAttendances()
+      if (isOwner) {
+        fetchCompanionCount()
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
   }
 
   const handleManualClockIn = async () => {
-    if (!authUser || !manualDate || !manualTime) return
+    if (!authUser || !authUser.user.email || !manualDate || !manualTime) return
 
     try {
       const dateTime = new Date(`${manualDate}T${manualTime}:00`)
+      
+      // 指定日の出勤記録をチェック
+      const targetDate = new Date(manualDate)
+      const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).toISOString()
+      const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1).toISOString()
+      
+      const { data: existingAttendance, error: checkError } = await supabase
+        .from('attendances')
+        .select('id')
+        .eq('user_email', authUser.user.email)
+        .gte('start_time', startOfDay)
+        .lt('start_time', endOfDay)
+        .limit(1)
+      
+      if (checkError) throw checkError
+      
+      if (existingAttendance && existingAttendance.length > 0) {
+        setError('指定日は既に出勤済みです。1日1回のみ出勤可能です。')
+        return
+      }
+      
       const { data, error } = await supabase
         .from('attendances')
         .insert({

@@ -326,22 +326,18 @@ export const Admin: React.FC = () => {
             let hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
             
             if (user.role === 'driver') {
-              // ドライバーの場合、0時前の出勤は0時開始でカウント
+              // ドライバーの場合、18時以降の出勤は翌0時出勤とする
               const startHour = start.getHours()
               const startMinute = start.getMinutes()
               
-              // 0時前（23時台など）の出勤の場合
-              if (startHour >= 22 || startHour < 6) { // 22時以降または6時前を深夜勤務とみなす
-                // 同日の0時を基準時刻として設定
+              // 18時以降の出勤の場合は翌0時出勤とする
+              if (startHour >= 18) {
+                // 翌日の0時を基準時刻として設定
                 const midnightStart = new Date(start)
+                midnightStart.setDate(start.getDate() + 1)
                 midnightStart.setHours(0, 0, 0, 0)
                 
-                // 終了時刻が翌日にまたがる場合は翌日の0時を基準にする
-                if (end.getDate() !== start.getDate()) {
-                  midnightStart.setDate(start.getDate() + 1)
-                }
-                
-                // 0時から終了時刻までの時間を計算
+                // 翌0時から終了時刻までの時間を計算
                 hours = (end.getTime() - midnightStart.getTime()) / (1000 * 60 * 60)
                 
                 // 負の値になる場合は元の計算を使用
@@ -452,21 +448,17 @@ export const Admin: React.FC = () => {
       let hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
       
       if (userRole === 'driver') {
-        // ドライバーの場合、0時前の出勤は0時開始でカウント
+        // ドライバーの場合、18時以降の出勤は翌0時出勤とする
         const startHour = start.getHours()
         
-        // 0時前（23時台など）の出勤の場合
-        if (startHour >= 22 || startHour < 6) { // 22時以降または6時前を深夜勤務とみなす
-          // 同日の0時を基準時刻として設定
+        // 18時以降の出勤の場合は翌0時出勤とする
+        if (startHour >= 18) {
+          // 翌日の0時を基準時刻として設定
           const midnightStart = new Date(start)
+          midnightStart.setDate(start.getDate() + 1)
           midnightStart.setHours(0, 0, 0, 0)
           
-          // 終了時刻が翌日にまたがる場合は翌日の0時を基準にする
-          if (end.getDate() !== start.getDate()) {
-            midnightStart.setDate(start.getDate() + 1)
-          }
-          
-          // 0時から終了時刻までの時間を計算
+          // 翌0時から終了時刻までの時間を計算
           hours = (end.getTime() - midnightStart.getTime()) / (1000 * 60 * 60)
           
           // 負の値になる場合は元の計算を使用
