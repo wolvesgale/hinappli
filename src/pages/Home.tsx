@@ -182,6 +182,9 @@ export const Home: React.FC = () => {
       setLoading(true)
       console.log('Home: Starting logout process...')
       
+      // エラーをクリア
+      setError('')
+      
       await signOut()
       
       console.log('Home: Logout successful, redirecting...')
@@ -189,9 +192,16 @@ export const Home: React.FC = () => {
       window.location.replace('/login')
     } catch (error) {
       console.error('Home: Sign out error:', error)
-      setError('ログアウトに失敗しました')
+      
+      // エラーメッセージを表示（ただし、リダイレクトは継続）
+      const errorMessage = error instanceof Error ? error.message : 'ログアウトに失敗しました'
+      console.error('Logout error details:', errorMessage)
+      
       // エラーが発生してもログインページにリダイレクト
-      window.location.replace('/login')
+      // ローカル状態はクリアされているはずなので、強制的にリダイレクト
+      setTimeout(() => {
+        window.location.replace('/login')
+      }, 100)
     } finally {
       setLoading(false)
     }

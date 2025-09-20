@@ -124,29 +124,46 @@ export const useAuth = () => {
     try {
       console.log('Starting sign out process...')
       
-      // ユーザー状態をクリア
+      // まずローカル状態をクリア
       setAuthUser(null)
       setLoading(false)
       
-      // Supabaseからサインアウト（scope: 'local'を指定してローカルセッションのみクリア）
+      // Supabaseからサインアウト
       const { error } = await supabase.auth.signOut({ scope: 'local' })
       if (error) {
         console.error('Supabase sign out error:', error)
-        // エラーが発生してもローカル状態はクリアする
+        // Supabaseのサインアウトでエラーが発生した場合でも、
+        // ローカル状態はクリアされているので処理を継続
       }
       
-      // ローカルストレージをクリア（念のため）
-      localStorage.clear()
-      sessionStorage.clear()
+      // ローカルストレージとセッションストレージをクリア
+      try {
+        localStorage.clear()
+        sessionStorage.clear()
+      } catch (storageError) {
+        console.error('Storage clear error:', storageError)
+        // ストレージクリアのエラーは無視
+      }
       
       console.log('Sign out completed successfully')
       
     } catch (error) {
       console.error('Sign out error:', error)
-      // エラーが発生してもユーザー状態はクリアする
+      
+      // エラーが発生してもローカル状態はクリアする
       setAuthUser(null)
       setLoading(false)
-      throw error
+      
+      // ストレージも強制的にクリア
+      try {
+        localStorage.clear()
+        sessionStorage.clear()
+      } catch (storageError) {
+        console.error('Storage clear error in catch:', storageError)
+      }
+      
+      // エラーを再スローしない（ログアウトは成功とみなす）
+      console.log('Sign out completed with errors, but local state cleared')
     }
   }
 

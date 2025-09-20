@@ -19,6 +19,7 @@ interface AttendanceRecord {
   start_time: string
   end_time: string | null
   companion_checked?: boolean // 同伴出勤フラグ
+  photo_url?: string // 出勤時写真URL
   created_at: string
 }
 
@@ -51,7 +52,7 @@ export const Admin: React.FC = () => {
   const [registerSessions, setRegisterSessions] = useState<RegisterSession[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState<'requests' | 'users' | 'sales' | 'payroll' | 'register'>('requests')
+  const [activeTab, setActiveTab] = useState<'requests' | 'users' | 'sales' | 'payroll' | 'register' | 'photos'>('requests')
   const [dateRange, setDateRange] = useState<'week' | 'month'>('month')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   
@@ -85,7 +86,8 @@ export const Admin: React.FC = () => {
   const [editingAttendance, setEditingAttendance] = useState<string | null>(null)
   const [editAttendanceForm, setEditAttendanceForm] = useState({
     start_time: '',
-    end_time: ''
+    end_time: '',
+    companion_checked: false
   })
 
   // Edit register session state
@@ -571,7 +573,14 @@ export const Admin: React.FC = () => {
 
   const handleUpdateTransaction = async (transactionId: string) => {
     try {
-      const { error } = await supabase
+      console.log('Updating transaction:', transactionId, editTransactionForm)
+      
+      // Use admin client to bypass RLS for update operations
+      if (!supabaseAdmin) {
+        throw new Error('管理者権限が必要です')
+      }
+      
+      const { error } = await supabaseAdmin
         .from('transactions')
         .update({
           amount: editTransactionForm.amount,
@@ -579,11 +588,16 @@ export const Admin: React.FC = () => {
         })
         .eq('id', transactionId)
       
-      if (error) throw error
+      if (error) {
+        console.error('Update error:', error)
+        throw error
+      }
       
+      console.log('Transaction updated successfully')
       setEditingTransaction(null)
-      fetchTransactions()
+      await fetchTransactions()
     } catch (err) {
+      console.error('Update transaction error:', err)
       setError(err instanceof Error ? err.message : '売上データの更新でエラーが発生しました')
     }
   }
@@ -623,7 +637,8 @@ export const Admin: React.FC = () => {
     setEditingAttendance(record.id)
     setEditAttendanceForm({
       start_time: new Date(record.start_time).toISOString().slice(0, 16),
-      end_time: record.end_time ? new Date(record.end_time).toISOString().slice(0, 16) : ''
+      end_time: record.end_time ? new Date(record.end_time).toISOString().slice(0, 16) : '',
+      companion_checked: record.companion_checked || false
     })
   }
 
@@ -634,7 +649,8 @@ export const Admin: React.FC = () => {
       }
 
       const updateData: any = {
-        start_time: new Date(editAttendanceForm.start_time).toISOString()
+        start_time: new Date(editAttendanceForm.start_time).toISOString(),
+        companion_checked: editAttendanceForm.companion_checked
       }
 
       if (editAttendanceForm.end_time) {
@@ -870,6 +886,16 @@ export const Admin: React.FC = () => {
             }`}
           >
             レジ管理
+          </button>
+          <button
+            onClick={() => setActiveTab('photos')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'photos'
+                ? 'bg-pink-600 text-white'
+                : 'bg-black/30 text-gray-300 hover:bg-black/40 border border-white/20'
+            }`}
+          >
+            出退勤写真
           </button>
         </div>
 
@@ -1433,6 +1459,20 @@ export const Admin: React.FC = () => {
                                         />
                                       </div>
                                     </div>
+                                    <div className="flex items-center space-x-3">
+                                      <label className="flex items-center space-x-2 text-xs text-gray-300">
+                                        <input
+                                          type="checkbox"
+                                          checked={editAttendanceForm.companion_checked}
+                                          onChange={(e) => setEditAttendanceForm({
+                                            ...editAttendanceForm,
+                                            companion_checked: e.target.checked
+                                          })}
+                                          className="w-4 h-4 text-pink-600 bg-gray-600 border-gray-500 rounded focus:ring-pink-500 focus:ring-2"
+                                        />
+                                        <span>同伴出勤</span>
+                                      </label>
+                                    </div>
                                     <div className="flex space-x-2">
                                       <button
                                         onClick={() => handleUpdateAttendance(record.id)}
@@ -1669,6 +1709,105 @@ export const Admin: React.FC = () => {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Photos Tab */}
+        {activeTab === 'photos' && (
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-white mb-4">出退勤写真確認（過去7日間）</h3>
+              
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-300">読み込み中...</div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                   {/* 写真付き出勤記録の表示 */}
+                   {attendanceData.length === 0 ? (
+                     <div className="text-center py-8">
+                       <div className="text-gray-300">写真付きの出勤記録がありません</div>
+                     </div>
+                   ) : (
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                       {attendanceData
+                         .flatMap(user => user.attendance_records)
+                         .filter((record: AttendanceRecord) => record.photo_url) // 写真がある記録のみ表示
+                         .map((record: AttendanceRecord) => (
+                           <div
+                             key={record.id}
+                             className="bg-gray-800/50 rounded-lg border border-gray-700 overflow-hidden"
+                           >
+                             <div className="p-4">
+                               <div className="flex items-center justify-between mb-3">
+                                 <div className="text-sm text-gray-400">
+                                   {record.user_email}
+                                 </div>
+                                 <div className="text-xs text-gray-500">
+                                   {new Date(record.start_time).toLocaleDateString('ja-JP')}
+                                 </div>
+                               </div>
+                               
+                               <div className="text-sm text-white mb-3">
+                                 出勤: {new Date(record.start_time).toLocaleTimeString('ja-JP', {
+                                   hour: '2-digit',
+                                   minute: '2-digit'
+                                 })}
+                                 {record.end_time && (
+                                   <>
+                                     <br />
+                                     退勤: {new Date(record.end_time).toLocaleTimeString('ja-JP', {
+                                       hour: '2-digit',
+                                       minute: '2-digit'
+                                     })}
+                                   </>
+                                 )}
+                               </div>
+
+                               {record.companion_checked && (
+                                 <div className="text-xs text-pink-400 mb-3">
+                                   🤝 同伴出勤
+                                 </div>
+                               )}
+                               
+                               {record.photo_url && (
+                                 <div className="aspect-video bg-gray-700 rounded-lg overflow-hidden">
+                                   <img
+                                     src={record.photo_url}
+                                     alt={`${record.user_email}の出勤写真`}
+                                     className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                     onClick={() => window.open(record.photo_url, '_blank')}
+                                   />
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+                         ))}
+                     </div>
+                   )}
+                   
+                   {/* 写真なしの記録がある場合の注意書き */}
+                   {attendanceData.some(user => 
+                     user.attendance_records.some((record: AttendanceRecord) => !record.photo_url)
+                   ) && (
+                    <div className="mt-6 p-4 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
+                      <div className="flex items-start space-x-3">
+                        <svg className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        <div>
+                          <h4 className="text-sm font-medium text-yellow-300 mb-1">注意</h4>
+                          <p className="text-sm text-yellow-200">
+                            写真が登録されていない出勤記録があります。写真機能は最近追加されたため、古い記録には写真がない場合があります。
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
