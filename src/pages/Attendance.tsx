@@ -112,11 +112,16 @@ export const Attendance: React.FC = () => {
     if (!authUser || !authUser.user.email) return
 
     try {
+      // 過去30日間のデータを取得（必要に応じて調整可能）
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      const startDate = thirtyDaysAgo.toISOString().split('T')[0]
+      
       const { data, error } = await supabase
         .from('attendances')
         .select('*')
         .eq('user_email', authUser.user.email)
-        .gte('start_time', `${today}T00:00:00`)
+        .gte('start_time', `${startDate}T00:00:00`)
         .order('start_time', { ascending: false })
       
       if (error) throw error
