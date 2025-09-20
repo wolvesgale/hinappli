@@ -18,6 +18,7 @@ interface AttendanceRecord {
   user_email?: string // 新しく追加されたフィールド（オプショナー）
   start_time: string
   end_time: string | null
+  companion_checked?: boolean // 同伴出勤フラグ
   created_at: string
 }
 
@@ -265,7 +266,7 @@ export const Admin: React.FC = () => {
       // Get attendance records with user_email
       const { data: attendanceData, error: attendanceError } = await supabase
         .from('attendances')
-        .select('*, user_email')
+        .select('*, user_email, companion_checked')
         .gte('start_time', startDate.start)
         .lte('start_time', startDate.end)
         .order('start_time', { ascending: false })
@@ -1386,6 +1387,9 @@ export const Admin: React.FC = () => {
                             <div className="text-sm text-gray-400 mt-1">
                               期間: {payrollDateRange === 'week' ? '週次' : '月次'} ({payrollSelectedDate}基準)
                             </div>
+                            <div className="text-sm text-pink-400 mt-1">
+                              同伴出勤: {user.attendance_records.filter(record => record.companion_checked).length}回
+                            </div>
                           </div>
                         </div>
                         
@@ -1456,6 +1460,11 @@ export const Admin: React.FC = () => {
                                           : '勤務中'
                                         }
                                       </span>
+                                      {record.companion_checked && (
+                                        <span className="px-2 py-1 bg-pink-600 text-white rounded-full">
+                                          同伴
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="flex space-x-1">
                                       <button
