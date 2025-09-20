@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { RegisterManager } from '../components/RegisterManager'
 import { supabase } from '../lib/supabase'
 
 export const Home: React.FC = () => {
   const { authUser, signOut, isOwner } = useAuthContext()
+  const navigate = useNavigate()
   const [registerStatus, setRegisterStatus] = useState<'closed' | 'open'>('closed')
   const [cashAmount, setCashAmount] = useState('')
   const [paypayAmount, setPaypayAmount] = useState('')
@@ -20,6 +21,12 @@ export const Home: React.FC = () => {
   }>>([])
   const [todaySales, setTodaySales] = useState(0)
   const [monthlySales, setMonthlySales] = useState(0)
+  const [attributedToEmail, setAttributedToEmail] = useState('')
+  const [allUsers, setAllUsers] = useState<Array<{
+    email: string
+    display_name: string
+    role: string
+  }>>([])
 
   // レジセッションの状態を取得
   useEffect(() => {
@@ -127,6 +134,26 @@ export const Home: React.FC = () => {
       }
     }
 
+    // 全ユーザー情報を取得（売上帰属選択用）
+    const fetchAllUsers = async () => {
+      if (!authUser) return
+
+      try {
+        const { data: users, error } = await supabase
+          .from('user_roles')
+          .select('email, display_name, role')
+          .in('role', ['owner', 'cast'])
+          .order('role', { ascending: true })
+          .order('display_name', { ascending: true })
+
+        if (error) throw error
+
+        setAllUsers(users || [])
+      } catch (err) {
+        console.error('ユーザー情報取得エラー:', err)
+      }
+    }
+
     const fetchSalesData = async () => {
       try {
         const today = new Date().toISOString().split('T')[0]
@@ -167,6 +194,7 @@ export const Home: React.FC = () => {
     fetchRegisterStatus()
     fetchAttendingMembers()
     fetchSalesData()
+    fetchAllUsers()
     
     // 5分ごとに出勤メンバーと売上データを更新
     const interval = setInterval(() => {
@@ -189,7 +217,7 @@ export const Home: React.FC = () => {
       
       console.log('Home: Logout successful, redirecting...')
       // React Routerを使用してナビゲーション
-      window.location.replace('/login')
+      navigate('/login', { replace: true })
     } catch (error) {
       console.error('Home: Sign out error:', error)
       
@@ -200,7 +228,7 @@ export const Home: React.FC = () => {
       // エラーが発生してもログインページにリダイレクト
       // ローカル状態はクリアされているはずなので、強制的にリダイレクト
       setTimeout(() => {
-        window.location.replace('/login')
+        navigate('/login', { replace: true })
       }, 100)
     } finally {
       setLoading(false)
@@ -224,11 +252,13 @@ export const Home: React.FC = () => {
             biz_date: today,
             payment_method: 'cash',
             amount: parseFloat(cashAmount),
+            attributed_to_email: attributedToEmail || null,
             created_by: authUser.user.email!
           })
 
         if (error) throw error
         setCashAmount('')
+        setAttributedToEmail('')
         console.log('現金売上を記録しました:', cashAmount)
       } catch (error) {
         console.error('現金売上記録エラー:', error)
@@ -254,11 +284,13 @@ export const Home: React.FC = () => {
             biz_date: today,
             payment_method: 'paypay',
             amount: parseFloat(paypayAmount),
+            attributed_to_email: attributedToEmail || null,
             created_by: authUser.user.email!
           })
 
         if (error) throw error
         setPaypayAmount('')
+        setAttributedToEmail('')
         console.log('PayPay売上を記録しました:', paypayAmount)
       } catch (error) {
         console.error('PayPay売上記録エラー:', error)
@@ -312,6 +344,47 @@ export const Home: React.FC = () => {
               <h3 className="text-lg font-semibold text-white mb-4">売上入力</h3>
               
               <div className="space-y-4">
+                {/* 売上帰属選択 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    売上帰属選択（任意）
+                  </label>
+                  <div className="text-xs text-gray-400 mb-2">
+                    売上を帰属させるキャストを選択してください。
+                  </div>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {/* Default "None" option */}
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="attribution"
+                        value=""
+                        checked={attributedToEmail === ''}
+                        onChange={() => setAttributedToEmail('')}
+                        className="text-pink-600 focus:ring-pink-500 focus:ring-offset-gray-800"
+                      />
+                      <span className="text-sm text-gray-300">無し</span>
+                    </label>
+                    
+                    {/* User options */}
+                    {allUsers.map((user) => (
+                      <label key={user.email} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="attribution"
+                          value={user.email}
+                          checked={attributedToEmail === user.email}
+                          onChange={() => setAttributedToEmail(user.email)}
+                          className="text-pink-600 focus:ring-pink-500 focus:ring-offset-gray-800"
+                        />
+                        <span className="text-sm text-gray-300">
+                          {user.display_name} ({user.role === 'owner' ? 'オーナー' : 'キャスト'})
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 {/* 現金 */}
                 <div className="space-y-2">
                   <label className="text-sm text-gray-300">現金</label>

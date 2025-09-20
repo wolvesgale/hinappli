@@ -49,6 +49,7 @@ export const Admin: React.FC = () => {
   const [userRoles, setUserRoles] = useState<UserRole[]>([])
   const [users, setUsers] = useState<UserRole[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [monthlyTransactions, setMonthlyTransactions] = useState<Transaction[]>([])
   const [attendanceData, setAttendanceData] = useState<UserWithAttendance[]>([])
   const [registerSessions, setRegisterSessions] = useState<RegisterSession[]>([])
   const [loading, setLoading] = useState(true)
@@ -215,6 +216,21 @@ export const Admin: React.FC = () => {
       
       if (error) throw error
       setTransactions(data || [])
+
+      // 月間取引データも取得（個別売上カード用）
+      const today = new Date()
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString()
+      
+      const { data: monthlyData, error: monthlyError } = await supabase
+        .from('transactions')
+        .select('*')
+        .gte('created_at', monthStart)
+        .lt('created_at', monthEnd)
+        .order('created_at', { ascending: false })
+      
+      if (monthlyError) throw monthlyError
+      setMonthlyTransactions(monthlyData || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     }
@@ -1260,43 +1276,53 @@ export const Admin: React.FC = () => {
                         <span className="text-lg sm:text-2xl">🏪</span>
                       </div>
                       <div className="space-y-1 sm:space-y-2">
-                        <div className="text-lg sm:text-2xl font-bold text-green-400">
+                        <div className="text-xs sm:text-sm text-gray-400 mb-1">本日売上</div>
+                        <div className="text-lg sm:text-xl font-bold text-green-400">
                           ¥{transactions
                             .filter(t => !t.attributed_to_email)
                             .reduce((sum, t) => sum + t.amount, 0)
                             .toLocaleString()}
                         </div>
-                        <div className="text-xs sm:text-sm text-gray-400">
-                          {transactions.filter(t => !t.attributed_to_email).length}件の取引
+                        <div className="text-xs sm:text-sm text-gray-400 mb-1">月間累計</div>
+                        <div className="text-base sm:text-lg font-bold text-green-300">
+                          ¥{monthlyTransactions
+                            .filter(t => !t.attributed_to_email)
+                            .reduce((sum, t) => sum + t.amount, 0)
+                            .toLocaleString()}
                         </div>
                       </div>
                     </div>
 
-                    {/* 各キャストの売上カード */}
+                    {/* オーナーとキャストの売上カード */}
                     {users
-                      .filter(user => user.role === 'cast')
-                      .map(cast => {
-                        const castTransactions = transactions.filter(t => t.attributed_to_email === cast.email)
-                        const totalAmount = castTransactions.reduce((sum, t) => sum + t.amount, 0)
+                      .filter(user => user.role === 'owner' || user.role === 'cast')
+                      .sort((a, b) => {
+                        // オーナーを最初に表示
+                        if (a.role === 'owner' && b.role !== 'owner') return -1
+                        if (a.role !== 'owner' && b.role === 'owner') return 1
+                        return a.display_name.localeCompare(b.display_name)
+                      })
+                      .map(user => {
+                        const todayTransactions = transactions.filter(t => t.attributed_to_email === user.email)
+                        const monthlyUserTransactions = monthlyTransactions.filter(t => t.attributed_to_email === user.email)
+                        const todayAmount = todayTransactions.reduce((sum, t) => sum + t.amount, 0)
+                        const monthlyAmount = monthlyUserTransactions.reduce((sum, t) => sum + t.amount, 0)
                         
                         return (
-                          <div key={cast.email} className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
+                          <div key={user.email} className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
                             <div className="flex items-center justify-between mb-2 sm:mb-3">
-                              <h4 className="text-sm sm:text-lg font-semibold text-white truncate pr-2">{cast.display_name}</h4>
-                              <span className="text-lg sm:text-2xl">👤</span>
+                              <h4 className="text-sm sm:text-lg font-semibold text-white truncate pr-2">{user.display_name}</h4>
+                              <span className="text-lg sm:text-2xl">{user.role === 'owner' ? '👑' : '👤'}</span>
                             </div>
                             <div className="space-y-1 sm:space-y-2">
-                              <div className="text-lg sm:text-2xl font-bold text-pink-400">
-                                ¥{totalAmount.toLocaleString()}
+                              <div className="text-xs sm:text-sm text-gray-400 mb-1">本日売上</div>
+                              <div className="text-lg sm:text-xl font-bold text-pink-400">
+                                ¥{todayAmount.toLocaleString()}
                               </div>
-                              <div className="text-xs sm:text-sm text-gray-400">
-                                {castTransactions.length}件の取引
+                              <div className="text-xs sm:text-sm text-gray-400 mb-1">月間累計</div>
+                              <div className="text-base sm:text-lg font-bold text-pink-300">
+                                ¥{monthlyAmount.toLocaleString()}
                               </div>
-                              {castTransactions.length > 0 && (
-                                <div className="text-xs text-gray-500">
-                                  平均: ¥{Math.round(totalAmount / castTransactions.length).toLocaleString()}
-                                </div>
-                              )}
                             </div>
                           </div>
                         )

@@ -149,18 +149,6 @@ export const Transactions: React.FC = () => {
                 }`}>
                   レジ{registerStatus === 'open' ? 'オープン' : 'クローズ'}
                 </span>
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  disabled={registerStatus !== 'open'}
-                  className={`px-4 py-2 rounded-md transition-colors ${
-                    registerStatus === 'open'
-                      ? 'bg-pink-600 hover:bg-pink-700 text-white'
-                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  }`}
-                  title={registerStatus !== 'open' ? 'レジをオープンしてから売上を追加してください' : ''}
-                >
-                  売上追加
-                </button>
               </div>
             </div>
           </div>
@@ -186,121 +174,10 @@ export const Transactions: React.FC = () => {
           </div>
         </div>
 
-        {/* Add Transaction Form */}
-        {showAddForm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-              <h3 className="text-xl font-bold text-white mb-4">売上追加</h3>
-              <form onSubmit={handleAddTransaction} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    金額
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    step="1"
-                    value={newTransaction.amount}
-                    onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-                    placeholder="1000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    支払い方法
-                  </label>
-                  <select
-                    value={newTransaction.paymentMethod}
-                    onChange={(e) => setNewTransaction({...newTransaction, paymentMethod: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-                  >
-                    <option value="cash">現金</option>
-                    <option value="card">カード</option>
-                    <option value="electronic">電子マネー</option>
-                    <option value="other">その他</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    メモ（任意）
-                  </label>
-                  <input
-                    type="text"
-                    value={newTransaction.memo}
-                    onChange={(e) => setNewTransaction({...newTransaction, memo: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-                    placeholder="備考"
-                  />
-                </div>
-                
-                {/* Sales Attribution Section */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    売上帰属選択（任意）
-                  </label>
-                  <div className="text-xs text-gray-400 mb-2">
-                    売上を帰属させるキャストを選択してください。
-                  </div>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {/* Default "None" option */}
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="attribution"
-                        value=""
-                        checked={newTransaction.attributedToEmail === ''}
-                        onChange={() => handleAttributionChange('')}
-                        className="text-pink-600 focus:ring-pink-500 focus:ring-offset-gray-800"
-                      />
-                      <span className="text-sm text-gray-300">無し</span>
-                    </label>
-                    {castMembers.map((cast) => (
-                      <label key={cast.email} className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="attribution"
-                          value={cast.email}
-                          checked={newTransaction.attributedToEmail === cast.email}
-                          onChange={() => handleAttributionChange(cast.email)}
-                          className="text-pink-600 focus:ring-pink-500 focus:ring-offset-gray-800"
-                        />
-                        <span className="text-sm text-gray-300">{cast.display_name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {newTransaction.attributedToEmail && (
-                    <div className="text-xs text-pink-400 mt-2">
-                      選択中: {getCastDisplayName(newTransaction.attributedToEmail)}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex space-x-3">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-pink-600 hover:bg-pink-700 text-white py-2 px-4 rounded-md transition-colors"
-                  >
-                    追加
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddForm(false)}
-                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md transition-colors"
-                  >
-                    キャンセル
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
         {/* Transactions List */}
         <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
           <div className="p-6">
-            <h3 className="text-xl font-bold text-white mb-4">取引履歴</h3>
+            <h3 className="text-xl font-bold text-white mb-4">売上詳細</h3>
             
             {loading ? (
               <div className="text-center py-8">
@@ -308,7 +185,7 @@ export const Transactions: React.FC = () => {
               </div>
             ) : transactions.length === 0 ? (
               <div className="text-center py-8">
-                <div className="text-gray-300">今日の取引はまだありません</div>
+                <div className="text-gray-300">該当期間の売上データはありません</div>
               </div>
             ) : (
               <div className="space-y-3">
