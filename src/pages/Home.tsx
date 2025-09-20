@@ -344,14 +344,19 @@ export const Home: React.FC = () => {
 
         {/* Quick Stats */}
         <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 text-center">
-            <h4 className="text-sm font-semibold text-white mb-1">今日の売上</h4>
-            <p className="text-2xl font-bold text-pink-400">¥{todaySales.toLocaleString()}</p>
-          </div>
-          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 text-center">
-            <h4 className="text-sm font-semibold text-white mb-1">今月の売上</h4>
-            <p className="text-2xl font-bold text-pink-400">¥{monthlySales.toLocaleString()}</p>
-          </div>
+          {/* 売上情報は管理者のみ表示 */}
+          {isOwner && (
+            <>
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 text-center">
+                <h4 className="text-sm font-semibold text-white mb-1">今日の売上</h4>
+                <p className="text-2xl font-bold text-pink-400">¥{todaySales.toLocaleString()}</p>
+              </div>
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 text-center">
+                <h4 className="text-sm font-semibold text-white mb-1">今月の売上</h4>
+                <p className="text-2xl font-bold text-pink-400">¥{monthlySales.toLocaleString()}</p>
+              </div>
+            </>
+          )}
           <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4 text-center">
             <h4 className="text-sm font-semibold text-white mb-1">出勤中</h4>
             <p className="text-2xl font-bold text-pink-400">{attendingMembers.length}人</p>

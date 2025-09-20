@@ -15,7 +15,7 @@ interface Transaction {
 interface AttendanceRecord {
   id: string
   user_id: string
-  user_email?: string // 新しく追加されたフィールド（オプショナル）
+  user_email?: string // 新しく追加されたフィールド（オプショナー）
   start_time: string
   end_time: string | null
   created_at: string
@@ -94,6 +94,19 @@ export const Admin: React.FC = () => {
     close_amount: 0
   })
 
+  // Password change state
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [passwordChangeForm, setPasswordChangeForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordChangeLoading, setPasswordChangeLoading] = useState(false)
+
+  // Sales data state
+  const [todaySales, setTodaySales] = useState(0)
+  const [monthlySales, setMonthlySales] = useState(0)
+
   const { authUser, loading: authLoading, isOwner } = useAuthContext()
 
   // 認証とオーナー権限の確認
@@ -145,6 +158,7 @@ export const Admin: React.FC = () => {
     fetchTransactions()
     fetchAttendanceData()
     fetchRegisterSessions()
+    fetchSalesData()
     
     // 写真クリーンアップを実行
     cleanupOldRegisterPhotos()
@@ -199,6 +213,44 @@ export const Admin: React.FC = () => {
       setTransactions(data || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
+    }
+  }
+
+  const fetchSalesData = async () => {
+    try {
+      const today = new Date()
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
+      
+      // 今日の売上を取得
+      const { data: todayData, error: todayError } = await supabase
+        .from('transactions')
+        .select('amount')
+        .gte('created_at', todayStart)
+        .lt('created_at', todayEnd)
+      
+      if (todayError) throw todayError
+      
+      const todayTotal = todayData?.reduce((sum, transaction) => sum + transaction.amount, 0) || 0
+      setTodaySales(todayTotal)
+      
+      // 今月の売上を取得
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString()
+      
+      const { data: monthData, error: monthError } = await supabase
+        .from('transactions')
+        .select('amount')
+        .gte('created_at', monthStart)
+        .lt('created_at', monthEnd)
+      
+      if (monthError) throw monthError
+      
+      const monthlyTotal = monthData?.reduce((sum, transaction) => sum + transaction.amount, 0) || 0
+      setMonthlySales(monthlyTotal)
+      
+    } catch (err) {
+      console.error('売上データ取得エラー:', err)
     }
   }
 
@@ -670,6 +722,51 @@ export const Admin: React.FC = () => {
     }
   }
 
+  // Password change functions
+  const handlePasswordChange = async () => {
+    if (passwordChangeForm.newPassword !== passwordChangeForm.confirmPassword) {
+      setError('新しいパスワードと確認用パスワードが一致しません')
+      return
+    }
+
+    if (passwordChangeForm.newPassword.length < 6) {
+      setError('パスワードは6文字以上で入力してください')
+      return
+    }
+
+    setPasswordChangeLoading(true)
+    try {
+      // 現在のパスワードで再認証
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: authUser?.user.email || '',
+        password: passwordChangeForm.currentPassword
+      })
+
+      if (signInError) {
+        throw new Error('現在のパスワードが正しくありません')
+      }
+
+      // パスワードを更新
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: passwordChangeForm.newPassword
+      })
+
+      if (updateError) throw updateError
+
+      setShowPasswordChange(false)
+      setPasswordChangeForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      })
+      alert('パスワードが正常に変更されました')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'パスワード変更でエラーが発生しました')
+    } finally {
+      setPasswordChangeLoading(false)
+    }
+  }
+
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'owner': return 'bg-red-600'
@@ -701,6 +798,12 @@ export const Admin: React.FC = () => {
               <h1 className="text-2xl font-bold text-white">管理者設定</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowPasswordChange(true)}
+                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+              >
+                パスワード変更
+              </button>
               <span className="text-sm bg-red-600 px-2 py-1 rounded">
                 オーナー専用
               </span>
@@ -1031,11 +1134,17 @@ export const Admin: React.FC = () => {
         {activeTab === 'sales' && (
           <div className="space-y-6">
             {/* Sales Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-white mb-2">総売上</h3>
-                <p className="text-3xl font-bold text-green-400">
-                  ¥{transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
+                <h3 className="text-lg font-semibold text-white mb-2">今日の売上</h3>
+                <p className="text-3xl font-bold text-pink-400">
+                  ¥{todaySales.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-white mb-2">今月の売上</h3>
+                <p className="text-3xl font-bold text-pink-400">
+                  ¥{monthlySales.toLocaleString()}
                 </p>
               </div>
               <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
@@ -1571,6 +1680,90 @@ export const Admin: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Password Change Modal */}
+      {showPasswordChange && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-white mb-4">パスワード変更</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  現在のパスワード
+                </label>
+                <input
+                  type="password"
+                  value={passwordChangeForm.currentPassword}
+                  onChange={(e) => setPasswordChangeForm(prev => ({
+                    ...prev,
+                    currentPassword: e.target.value
+                  }))}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-500"
+                  placeholder="現在のパスワードを入力"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  新しいパスワード
+                </label>
+                <input
+                  type="password"
+                  value={passwordChangeForm.newPassword}
+                  onChange={(e) => setPasswordChangeForm(prev => ({
+                    ...prev,
+                    newPassword: e.target.value
+                  }))}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-500"
+                  placeholder="新しいパスワードを入力（6文字以上）"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  新しいパスワード（確認）
+                </label>
+                <input
+                  type="password"
+                  value={passwordChangeForm.confirmPassword}
+                  onChange={(e) => setPasswordChangeForm(prev => ({
+                    ...prev,
+                    confirmPassword: e.target.value
+                  }))}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-500"
+                  placeholder="新しいパスワードを再入力"
+                />
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowPasswordChange(false)
+                  setPasswordChangeForm({
+                    currentPassword: '',
+                    newPassword: '',
+                    confirmPassword: ''
+                  })
+                  setError('')
+                }}
+                className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                disabled={passwordChangeLoading}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handlePasswordChange}
+                disabled={passwordChangeLoading || !passwordChangeForm.currentPassword || !passwordChangeForm.newPassword || !passwordChangeForm.confirmPassword}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {passwordChangeLoading ? '変更中...' : '変更'}
+              </button>
+            </div>
           </div>
         </div>
       )}
