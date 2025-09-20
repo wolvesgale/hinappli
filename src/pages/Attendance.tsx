@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { supabase } from '../lib/supabase'
@@ -21,8 +21,58 @@ export const Attendance: React.FC = () => {
   const [companionChecked, setCompanionChecked] = useState(false)
   // ★追加: 同伴出勤回数のstate
   const [companionCount, setCompanionCount] = useState(0)
+  // ★追加: 写真撮影関連の状態
+  const [attendancePhoto, setAttendancePhoto] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { authUser, isOwner } = useAuthContext()
+  // ★追加: 写真アップロード処理
+  const uploadPhoto = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${authUser?.user.id}_${Date.now()}.${fileExt}`
+      const filePath = `attendance-photos/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('attendance-photos')
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      const { data } = supabase.storage
+        .from('attendance-photos')
+        .getPublicUrl(filePath)
+
+      return data.publicUrl
+    } catch (err) {
+      console.error('Photo upload error:', err)
+      return null
+    }
+  }
+
   const today = new Date().toISOString().split('T')[0]
+
+  // ★追加: 写真選択処理
+  const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      setAttendancePhoto(file)
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setPhotoPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  // ★追加: 写真削除処理
+  const handlePhotoRemove = () => {
+    setAttendancePhoto(null)
+    setPhotoPreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
 
   useEffect(() => {
     if (authUser) {
@@ -99,15 +149,29 @@ export const Attendance: React.FC = () => {
 
   const handleClockIn = async () => {
     if (!authUser || !authUser.user.email) return
+    
+    // 写真が必須
+    if (!attendancePhoto) {
+      setError('出勤時の写真撮影は必須です。先ずは自身とお店を撮影してください。')
+      return
+    }
 
     try {
+      // 写真をアップロード
+      const photoUrl = await uploadPhoto(attendancePhoto)
+      if (!photoUrl) {
+        setError('写真のアップロードに失敗しました。')
+        return
+      }
+
       const { data, error } = await supabase
         .from('attendances')
         .insert({
           user_id: authUser.user.id,
           user_email: authUser.user.email,
           start_time: new Date().toISOString(),
-          companion_checked: companionChecked // ★追加: 同伴チェック状態を保存
+          companion_checked: companionChecked,
+          photo_url: photoUrl // ★追加: 写真URLを保存
         })
         .select()
         .maybeSingle()
@@ -117,8 +181,10 @@ export const Attendance: React.FC = () => {
       // 新しい出勤記録を即座に状態に反映
       setCurrentAttendance(data)
       
-      // 同伴チェックをリセット
+      // 状態をリセット
       setCompanionChecked(false)
+      setAttendancePhoto(null)
+      setPhotoPreview(null)
       
       // データを再取得
       await fetchAttendances()
@@ -359,6 +425,59 @@ export const Attendance: React.FC = () => {
                   未出勤
                 </div>
                 
+                {/* ★追加: 写真撮影関連の状態 */}
+                <div className="bg-gray-800/50 rounded-lg p-4 mb-4">
+                  <div className="text-center mb-4">
+                    <p className="text-pink-300 text-lg font-medium mb-2">
+                      📸 おはようございます✨まずは自身とお店を撮影してくださいね♪
+                    </p>
+                    <p className="text-gray-400 text-sm">
+                      出勤時の写真撮影は必須項目です
+                    </p>
+                  </div>
+                  
+                  {!photoPreview ? (
+                    <div className="text-center">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handlePhotoSelect}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+                      >
+                        📷 写真を撮影
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <img
+                        src={photoPreview}
+                        alt="出勤時写真"
+                        className="max-w-full max-h-48 mx-auto rounded-lg mb-3"
+                      />
+                      <div className="flex justify-center space-x-3">
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                        >
+                          📷 撮り直し
+                        </button>
+                        <button
+                          onClick={handlePhotoRemove}
+                          className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                        >
+                          🗑️ 削除
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
                 {/* ★追加: 同伴チェックボックス */}
                 <div className="flex items-center justify-center space-x-3 mb-4">
                   <input
@@ -376,7 +495,8 @@ export const Attendance: React.FC = () => {
                 <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
                   <button
                     onClick={handleClockIn}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-lg text-lg md:text-xl transition-colors"
+                    disabled={!attendancePhoto}
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-lg text-lg md:text-xl transition-colors"
                   >
                     出勤
                   </button>
@@ -395,6 +515,53 @@ export const Attendance: React.FC = () => {
               <div className="mt-6 p-6 bg-gray-800/50 rounded-lg">
                 <h3 className="text-lg font-semibold text-white mb-4">時刻を指定</h3>
                 <div className="space-y-4">
+                  {/* ★追加: 手動入力時の写真撮影セクション */}
+                  {!currentAttendance && (
+                    <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                      <div className="text-center mb-4">
+                        <p className="text-pink-300 text-lg font-medium mb-2">
+                          📸 おはようございます✨先ずは自身とお店を撮影してくださいね♪
+                        </p>
+                        <p className="text-gray-400 text-sm">
+                          出勤時の写真撮影は必須項目です
+                        </p>
+                      </div>
+                      
+                      {!photoPreview ? (
+                        <div className="text-center">
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                          >
+                            📷 写真を撮影
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <img
+                            src={photoPreview}
+                            alt="出勤時写真"
+                            className="max-w-full max-h-32 mx-auto rounded-lg mb-3"
+                          />
+                          <div className="flex justify-center space-x-3">
+                            <button
+                              onClick={() => fileInputRef.current?.click()}
+                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded transition-colors text-sm"
+                            >
+                              📷 撮り直し
+                            </button>
+                            <button
+                              onClick={handlePhotoRemove}
+                              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded transition-colors text-sm"
+                            >
+                              🗑️ 削除
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   {/* ★追加: 手動入力時の同伴チェックボックス */}
                   {!currentAttendance && (
                     <div className="flex items-center space-x-3">
@@ -445,7 +612,7 @@ export const Attendance: React.FC = () => {
                     ) : (
                       <button
                         onClick={handleManualClockIn}
-                        disabled={!manualDate || !manualTime}
+                        disabled={!manualDate || !manualTime || !attendancePhoto}
                         className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
                       >
                         指定時刻で出勤
@@ -456,7 +623,9 @@ export const Attendance: React.FC = () => {
                         setShowManualInput(false)
                         setManualTime('')
                         setManualDate('')
-                        setCompanionChecked(false) // 同伴チェックもリセット
+                        setCompanionChecked(false)
+                        setAttendancePhoto(null)
+                        setPhotoPreview(null)
                       }}
                       className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
                     >
@@ -696,4 +865,150 @@ export const Attendance: React.FC = () => {
       </main>
     </div>
   )
+}
+
+
+// ★追加: 写真アップロード処理
+const uploadPhoto = async (file: File): Promise<string | null> => {
+  try {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${authUser?.user.id}_${Date.now()}.${fileExt}`
+    const filePath = `attendance-photos/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('attendance-photos')
+      .upload(filePath, file)
+
+    if (uploadError) throw uploadError
+
+    const { data } = supabase.storage
+      .from('attendance-photos')
+      .getPublicUrl(filePath)
+
+    return data.publicUrl
+  } catch (err) {
+    console.error('Photo upload error:', err)
+    return null
+  }
+}
+
+// ★修正: 出勤処理に写真アップロードを追加
+const handleClockIn = async () => {
+  if (!authUser || !authUser.user.email) return
+  
+  // 写真が必須
+  if (!attendancePhoto) {
+    setError('出勤時の写真撮影は必須です。先ずは自身とお店を撮影してください。')
+    return
+  }
+
+  try {
+    // 写真をアップロード
+    const photoUrl = await uploadPhoto(attendancePhoto)
+    if (!photoUrl) {
+      setError('写真のアップロードに失敗しました。')
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('attendances')
+      .insert({
+        user_id: authUser.user.id,
+        user_email: authUser.user.email,
+        start_time: new Date().toISOString(),
+        companion_checked: companionChecked,
+        photo_url: photoUrl // ★追加: 写真URLを保存
+      })
+      .select()
+      .maybeSingle()
+    
+    if (error) throw error
+    
+    // 新しい出勤記録を即座に状態に反映
+    setCurrentAttendance(data)
+    
+    // 状態をリセット
+    setCompanionChecked(false)
+    setAttendancePhoto(null)
+    setPhotoPreview(null)
+    setShowPhotoInput(false)
+    
+    // データを再取得
+    await fetchAttendances()
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'エラーが発生しました')
+  }
+}
+
+// ★修正: 手動出勤処理に写真アップロードを追加
+const handleManualClockIn = async () => {
+  if (!authUser || !manualDate || !manualTime) return
+  
+  // 写真が必須
+  if (!attendancePhoto) {
+    setError('出勤時の写真撮影は必須です。先ずは自身とお店を撮影してください。')
+    return
+  }
+
+  try {
+    // 写真をアップロード
+    const photoUrl = await uploadPhoto(attendancePhoto)
+    if (!photoUrl) {
+      setError('写真のアップロードに失敗しました。')
+      return
+    }
+
+    const dateTime = new Date(`${manualDate}T${manualTime}:00`)
+    const { data, error } = await supabase
+      .from('attendances')
+      .insert({
+        user_id: authUser.user.id,
+        user_email: authUser.user.email,
+        start_time: dateTime.toISOString(),
+        companion_checked: companionChecked,
+        photo_url: photoUrl // ★追加: 写真URLを保存
+      })
+      .select()
+      .maybeSingle()
+    
+    if (error) throw error
+    
+    // 新しい出勤記録を即座に状態に反映
+    setCurrentAttendance(data)
+    
+    setShowManualInput(false)
+    setManualTime('')
+    setManualDate('')
+    setCompanionChecked(false)
+    setAttendancePhoto(null)
+    setPhotoPreview(null)
+    setShowPhotoInput(false)
+    
+    // データを再取得
+    await fetchAttendances()
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'エラーが発生しました')
+  }
+}
+
+// ★追加: 写真選択処理
+const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0]
+  if (file) {
+    setAttendancePhoto(file)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setPhotoPreview(e.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+}
+
+// ★追加: 写真削除処理
+const handlePhotoRemove = () => {
+  setAttendancePhoto(null)
+  setPhotoPreview(null)
+  if (fileInputRef.current) {
+    fileInputRef.current.value = ''
+  }
 }

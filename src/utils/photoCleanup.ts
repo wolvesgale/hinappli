@@ -133,13 +133,13 @@ const extractPhotoPath = (photoUrl: string): string | null => {
  * アプリケーション起動時やスケジュールされたタスクで呼び出す
  */
 export const schedulePhotoCleanup = () => {
-  // 即座に一度実行
+  // 初回実行
   cleanupOldRegisterPhotos()
-
+  
   // 24時間ごとに実行
-  const interval = setInterval(() => {
+  setInterval(() => {
     cleanupOldRegisterPhotos()
   }, 24 * 60 * 60 * 1000) // 24時間
 
-  return interval
+  console.log('Photo cleanup scheduler started')
 }
