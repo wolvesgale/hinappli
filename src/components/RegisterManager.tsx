@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { supabase, supabaseAdmin } from '../lib/supabase'
+import { compressRegisterPhoto } from '../utils/imageCompression'
 
 interface RegisterManagerProps {
   registerStatus: 'closed' | 'open'
@@ -18,7 +19,10 @@ export const RegisterManager: React.FC<RegisterManagerProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handlePhotoUpload = async (file: File): Promise<string> => {
-    const fileExt = file.name.split('.').pop()
+    // 画像を圧縮
+    const compressedFile = await compressRegisterPhoto(file)
+    
+    const fileExt = compressedFile.name.split('.').pop()
     const fileName = `register_${Date.now()}.${fileExt}`
     const filePath = `register-photos/${fileName}`
 
@@ -41,7 +45,7 @@ export const RegisterManager: React.FC<RegisterManagerProps> = ({
 
     const { error: uploadError } = await adminClient.storage
       .from('register-photos')
-      .upload(filePath, file)
+      .upload(filePath, compressedFile)
 
     if (uploadError) throw uploadError
 

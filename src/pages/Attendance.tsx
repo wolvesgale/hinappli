@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { supabase } from '../lib/supabase'
 import type { Attendance as AttendanceRecord } from '../types/database'
+import { compressAttendancePhoto } from '../utils/imageCompression'
 
 export const Attendance: React.FC = () => {
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([])
@@ -52,16 +53,24 @@ export const Attendance: React.FC = () => {
 
   const today = new Date().toISOString().split('T')[0]
 
-  // ★追加: 写真選択処理
-  const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // ★追加: 写真選択処理（圧縮機能付き）
+  const handlePhotoSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      setAttendancePhoto(file)
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setPhotoPreview(e.target?.result as string)
+      try {
+        // 画像を圧縮
+        const compressedFile = await compressAttendancePhoto(file)
+        setAttendancePhoto(compressedFile)
+        
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          setPhotoPreview(e.target?.result as string)
+        }
+        reader.readAsDataURL(compressedFile)
+      } catch (error) {
+        console.error('画像圧縮エラー:', error)
+        setError('画像の処理に失敗しました。別の画像を選択してください。')
       }
-      reader.readAsDataURL(file)
     }
   }
 

@@ -110,8 +110,17 @@ export const Home: React.FC = () => {
         // emailをキーとしたマップを作成
         const roleMap = new Map(roles?.map(r => [r.email, r]) || [])
         
+        // 同一ユーザーの最新の出勤レコードのみを取得（重複排除）
+        const latestAttendanceMap = new Map()
+        validAttendances.forEach(attendance => {
+          const existing = latestAttendanceMap.get(attendance.user_email)
+          if (!existing || new Date(attendance.start_time) > new Date(existing.start_time)) {
+            latestAttendanceMap.set(attendance.user_email, attendance)
+          }
+        })
+        
         // 出勤メンバー情報を構築（同伴情報も含む）
-        const members = validAttendances.map(attendance => {
+        const members = Array.from(latestAttendanceMap.values()).map(attendance => {
           const role = roleMap.get(attendance.user_email) || { 
             display_name: attendance.user_email, 
             role: 'cast' 
