@@ -697,12 +697,20 @@ export const Admin: React.FC = () => {
     }
   }
 
+  // 日本時間（JST）でのdatetime-local形式に変換する関数
+  const toJSTDateTimeLocal = (dateString: string): string => {
+    const date = new Date(dateString)
+    // 日本時間（UTC+9）に変換
+    const jstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000))
+    return jstDate.toISOString().slice(0, 16)
+  }
+
   // Attendance management functions
   const handleEditAttendance = (record: AttendanceRecord) => {
     setEditingAttendance(record.id)
     setEditAttendanceForm({
-      start_time: new Date(record.start_time).toISOString().slice(0, 16),
-      end_time: record.end_time ? new Date(record.end_time).toISOString().slice(0, 16) : '',
+      start_time: toJSTDateTimeLocal(record.start_time),
+      end_time: record.end_time ? toJSTDateTimeLocal(record.end_time) : '',
       companion_checked: record.companion_checked || false
     })
   }
@@ -713,13 +721,19 @@ export const Admin: React.FC = () => {
         throw new Error('管理者権限が必要です')
       }
 
+      // 日本時間からUTCに変換
+      const startTimeJST = new Date(editAttendanceForm.start_time)
+      const startTimeUTC = new Date(startTimeJST.getTime() - (9 * 60 * 60 * 1000))
+
       const updateData: any = {
-        start_time: new Date(editAttendanceForm.start_time).toISOString(),
+        start_time: startTimeUTC.toISOString(),
         companion_checked: editAttendanceForm.companion_checked
       }
 
       if (editAttendanceForm.end_time) {
-        updateData.end_time = new Date(editAttendanceForm.end_time).toISOString()
+        const endTimeJST = new Date(editAttendanceForm.end_time)
+        const endTimeUTC = new Date(endTimeJST.getTime() - (9 * 60 * 60 * 1000))
+        updateData.end_time = endTimeUTC.toISOString()
       }
 
       const { error } = await supabaseAdmin

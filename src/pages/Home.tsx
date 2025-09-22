@@ -64,6 +64,7 @@ export const Home: React.FC = () => {
 
       try {
         console.log('Fetching attending members with email-based approach')
+        console.log('Current authUser:', authUser)
         
         // 出勤中（end_timeがnull）のメンバーを取得（同伴情報も含む）
         const { data: attendances, error: attendanceError } = await supabase
@@ -75,7 +76,10 @@ export const Home: React.FC = () => {
         console.log('Active attendances:', attendances)
         console.log('Attendance query error:', attendanceError)
     
-        if (attendanceError) throw attendanceError
+        if (attendanceError) {
+          console.error('Attendance query error:', attendanceError)
+          throw attendanceError
+        }
     
         if (!attendances || attendances.length === 0) {
           console.log('No active attendances found')
@@ -85,6 +89,7 @@ export const Home: React.FC = () => {
 
         // user_emailが設定されていない古いレコードをフィルタリング
         const validAttendances = attendances.filter(a => a.user_email)
+        console.log('Valid attendances after filtering:', validAttendances)
         
         if (validAttendances.length === 0) {
           console.log('No attendances with user_email found')
@@ -105,10 +110,14 @@ export const Home: React.FC = () => {
         console.log('User roles:', roles)
         console.log('Role query error:', roleError)
 
-        if (roleError) throw roleError
+        if (roleError) {
+          console.error('Role query error:', roleError)
+          throw roleError
+        }
 
         // emailをキーとしたマップを作成
         const roleMap = new Map(roles?.map(r => [r.email, r]) || [])
+        console.log('Role map:', roleMap)
         
         // 同一ユーザーの最新の出勤レコードのみを取得（重複排除）
         const latestAttendanceMap = new Map()
@@ -118,6 +127,8 @@ export const Home: React.FC = () => {
             latestAttendanceMap.set(attendance.user_email, attendance)
           }
         })
+        
+        console.log('Latest attendance map:', latestAttendanceMap)
         
         // 出勤メンバー情報を構築（同伴情報も含む）
         const members = Array.from(latestAttendanceMap.values()).map(attendance => {
@@ -136,6 +147,7 @@ export const Home: React.FC = () => {
         })
 
         console.log('Final members array:', members)
+        console.log('Setting attending members count:', members.length)
         setAttendingMembers(members)
       } catch (err) {
         console.error('出勤メンバー取得エラー:', err)
