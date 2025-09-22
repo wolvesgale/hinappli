@@ -505,11 +505,10 @@ export const Home: React.FC = () => {
           )}
         </div>
 
-        {/* 出勤メンバー一覧 (Owner Only) */}
-        {isOwner && (
-          <div className="mt-6">
-            <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-white mb-3">出勤メンバー</h3>
+        {/* 出勤メンバー一覧 */}
+        <div className="mt-6">
+          <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-white mb-3">出勤メンバー</h3>
             {attendingMembers.length === 0 ? (
               <div className="text-gray-300 text-sm text-center py-4">
                 現在出勤中のメンバーはいません
@@ -595,7 +594,6 @@ export const Home: React.FC = () => {
             )}
           </div>
         </div>
-        )}
       </main>
     </div>
   )
