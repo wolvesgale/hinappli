@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { RegisterManager } from '../components/RegisterManager'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseAdmin } from '../lib/supabase'
 
 export const Home: React.FC = () => {
   const { authUser, signOut, isOwner } = useAuthContext()
@@ -60,64 +60,72 @@ export const Home: React.FC = () => {
 
     // 出勤メンバーを取得
     const fetchAttendingMembers = async () => {
-      if (!authUser) return
-
       try {
-        console.log('Fetching attending members with email-based approach')
-        console.log('Current authUser:', authUser)
+        console.log('fetchAttendingMembers: 開始')
         
-        // 出勤中（end_timeがnull）のメンバーを取得（同伴情報も含む）
-        const { data: attendances, error: attendanceError } = await supabase
+        // 管理者クライアントを優先的に使用、なければ通常クライアント
+        const client = supabaseAdmin || supabase
+        console.log('fetchAttendingMembers: クライアント選択', supabaseAdmin ? 'Admin' : 'Normal')
+        
+        // 出勤中（end_timeがnull）のメンバーを取得
+        const { data: attendances, error: attendanceError } = await client
           .from('attendances')
-          .select('user_email, start_time, companion_checked') // ★追加: companion_checkedを取得
+          .select('user_email, start_time, companion_checked')
           .is('end_time', null)
           .order('start_time', { ascending: false })
-    
-        console.log('Active attendances:', attendances)
-        console.log('Attendance query error:', attendanceError)
-    
+
+        console.log('fetchAttendingMembers: 出勤データ', attendances)
+
         if (attendanceError) {
-          console.error('Attendance query error:', attendanceError)
-          throw attendanceError
+          console.error('fetchAttendingMembers: 出勤データエラー', attendanceError)
+          return
         }
-    
+
         if (!attendances || attendances.length === 0) {
-          console.log('No active attendances found')
+          console.log('fetchAttendingMembers: 出勤中のメンバーなし')
           setAttendingMembers([])
           return
         }
 
         // user_emailが設定されていない古いレコードをフィルタリング
         const validAttendances = attendances.filter(a => a.user_email)
-        console.log('Valid attendances after filtering:', validAttendances)
+        console.log('fetchAttendingMembers: 有効な出勤データ', validAttendances)
         
         if (validAttendances.length === 0) {
-          console.log('No attendances with user_email found')
+          console.log('fetchAttendingMembers: user_emailを持つ出勤データなし')
           setAttendingMembers([])
           return
         }
 
         // 出勤中のメンバーのemailリストを取得
         const emails = [...new Set(validAttendances.map(a => a.user_email).filter(Boolean))]
-        console.log('Unique emails:', emails)
+        console.log('fetchAttendingMembers: ユニークなメールアドレス', emails)
 
         // user_rolesから役割情報をまとめて取得（emailベース）
-        const { data: roles, error: roleError } = await supabase
+        const { data: roles, error: roleError } = await client
           .from('user_roles')
           .select('email, display_name, role')
           .in('email', emails)
 
-        console.log('User roles:', roles)
-        console.log('Role query error:', roleError)
+        console.log('fetchAttendingMembers: ユーザーロール', roles)
 
         if (roleError) {
-          console.error('Role query error:', roleError)
-          throw roleError
+          console.error('fetchAttendingMembers: ロールデータエラー', roleError)
+          // エラー時はemailのみで表示
+          const fallbackMembers = validAttendances.map(attendance => ({
+            email: attendance.user_email,
+            display_name: attendance.user_email,
+            role: 'cast',
+            start_time: attendance.start_time,
+            companion_checked: attendance.companion_checked || false
+          }))
+          setAttendingMembers(fallbackMembers)
+          return
         }
 
         // emailをキーとしたマップを作成
         const roleMap = new Map(roles?.map(r => [r.email, r]) || [])
-        console.log('Role map:', roleMap)
+        console.log('fetchAttendingMembers: ロールマップ', roleMap)
         
         // 同一ユーザーの最新の出勤レコードのみを取得（重複排除）
         const latestAttendanceMap = new Map()
@@ -128,9 +136,9 @@ export const Home: React.FC = () => {
           }
         })
         
-        console.log('Latest attendance map:', latestAttendanceMap)
+        console.log('fetchAttendingMembers: 最新出勤マップ', latestAttendanceMap)
         
-        // 出勤メンバー情報を構築（同伴情報も含む）
+        // 出勤メンバー情報を構築
         const members = Array.from(latestAttendanceMap.values()).map(attendance => {
           const role = roleMap.get(attendance.user_email) || { 
             display_name: attendance.user_email, 
@@ -142,58 +150,79 @@ export const Home: React.FC = () => {
             display_name: role.display_name || attendance.user_email,
             role: role.role || 'cast',
             start_time: attendance.start_time,
-            companion_checked: attendance.companion_checked || false // ★追加: 同伴出勤フラグ
+            companion_checked: attendance.companion_checked || false
           }
         })
 
-        console.log('Final members array:', members)
-        console.log('Setting attending members count:', members.length)
+        console.log('fetchAttendingMembers: 最終メンバー配列', members)
         setAttendingMembers(members)
       } catch (err) {
-        console.error('出勤メンバー取得エラー:', err)
+        console.error('fetchAttendingMembers: 例外エラー', err)
         setAttendingMembers([])
       }
     }
 
     // 全ユーザー情報を取得（売上帰属選択用）
     const fetchAllUsers = async () => {
-      if (!authUser) return
-
       try {
-        // オーナーの場合は全ユーザーを取得、それ以外は自分のみ
-        if (authUser.role === 'owner') {
-          const { data: users, error } = await supabase
-            .from('user_roles')
-            .select('email, display_name, role')
-            .in('role', ['owner', 'cast', 'driver'])
-            .order('role', { ascending: true })
-            .order('display_name', { ascending: true })
+        console.log('fetchAllUsers: 開始')
+        
+        // 管理者クライアントを優先的に使用、なければ通常クライアント
+        const client = supabaseAdmin || supabase
+        console.log('fetchAllUsers: クライアント選択', supabaseAdmin ? 'Admin' : 'Normal')
+        
+        const { data, error } = await client
+          .from('user_roles')
+          .select('email, display_name, role')
+          .in('role', ['owner', 'cast']) // オーナーとキャストのみ取得
+          .order('role', { ascending: true }) // オーナーを先頭に
+          .order('display_name', { ascending: true })
 
-          if (error) {
-            console.error('fetchAllUsers: エラー', error)
-            throw error
+        if (error) {
+          console.error('fetchAllUsers: エラー', error)
+          
+          // エラー時は現在のユーザー情報のみ表示
+          if (authUser?.user?.email) {
+            const fallbackUser = {
+              email: authUser.user.email,
+              display_name: authUser.displayName || 'ひな（オーナー）',
+              role: authUser.role || 'owner'
+            }
+            console.log('fetchAllUsers: フォールバック', fallbackUser)
+            setAllUsers([fallbackUser])
           }
-
-          setAllUsers(users || [])
-        } else {
-          // オーナー以外は自分の情報のみ表示
-          const selfUser = {
-            email: authUser.user.email!,
-            display_name: authUser.displayName || authUser.user.email!,
-            role: authUser.role || 'cast'
-          }
-          setAllUsers([selfUser])
+          return
         }
-      } catch (err) {
-        console.error('ユーザー情報取得エラー:', err)
-        // エラーの場合は自分の情報のみ設定
-        if (authUser) {
-          const selfUser = {
-            email: authUser.user.email!,
-            display_name: authUser.displayName || authUser.user.email!,
-            role: authUser.role || 'cast'
+
+        console.log('fetchAllUsers: 取得成功', data)
+        
+        // データが空の場合もフォールバック
+        if (!data || data.length === 0) {
+          console.log('fetchAllUsers: データが空、フォールバック実行')
+          if (authUser?.user?.email) {
+            const fallbackUser = {
+              email: authUser.user.email,
+              display_name: authUser.displayName || 'ひな（オーナー）',
+              role: authUser.role || 'owner'
+            }
+            setAllUsers([fallbackUser])
           }
-          setAllUsers([selfUser])
+          return
+        }
+        
+        setAllUsers(data)
+      } catch (err) {
+        console.error('fetchAllUsers: 例外エラー', err)
+        
+        // エラー時は現在のユーザー情報のみ表示
+        if (authUser?.user?.email) {
+          const fallbackUser = {
+            email: authUser.user.email,
+            display_name: authUser.displayName || 'ひな（オーナー）',
+            role: authUser.role || 'owner'
+          }
+          console.log('fetchAllUsers: 例外フォールバック', fallbackUser)
+          setAllUsers([fallbackUser])
         }
       }
     }
@@ -564,16 +593,13 @@ export const Home: React.FC = () => {
                         <div key={index} className="flex justify-between items-center p-3 bg-gray-800/50 rounded-lg">
                           <div>
                             <div className="text-white font-medium flex items-center">
-                              {member.display_name || member.email}
+                              {member.display_name}
                               {/* ★追加: 同伴出勤表示 */}
                               {member.companion_checked && (
                                 <span className="ml-2 px-2 py-1 bg-pink-600 text-white text-xs rounded-full">
                                   同伴
                                 </span>
                               )}
-                            </div>
-                            <div className="text-gray-400 text-sm">
-                              {member.email}
                             </div>
                           </div>
                           <div className="text-right">
