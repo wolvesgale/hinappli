@@ -160,18 +160,41 @@ export const Home: React.FC = () => {
       if (!authUser) return
 
       try {
-        const { data: users, error } = await supabase
-          .from('user_roles')
-          .select('email, display_name, role')
-          .in('role', ['owner', 'cast', 'driver'])
-          .order('role', { ascending: true })
-          .order('display_name', { ascending: true })
+        // オーナーの場合は全ユーザーを取得、それ以外は自分のみ
+        if (authUser.role === 'owner') {
+          const { data: users, error } = await supabase
+            .from('user_roles')
+            .select('email, display_name, role')
+            .in('role', ['owner', 'cast', 'driver'])
+            .order('role', { ascending: true })
+            .order('display_name', { ascending: true })
 
-        if (error) throw error
+          if (error) {
+            console.error('fetchAllUsers: エラー', error)
+            throw error
+          }
 
-        setAllUsers(users || [])
+          setAllUsers(users || [])
+        } else {
+          // オーナー以外は自分の情報のみ表示
+          const selfUser = {
+            email: authUser.user.email!,
+            display_name: authUser.displayName || authUser.user.email!,
+            role: authUser.role || 'cast'
+          }
+          setAllUsers([selfUser])
+        }
       } catch (err) {
         console.error('ユーザー情報取得エラー:', err)
+        // エラーの場合は自分の情報のみ設定
+        if (authUser) {
+          const selfUser = {
+            email: authUser.user.email!,
+            display_name: authUser.displayName || authUser.user.email!,
+            role: authUser.role || 'cast'
+          }
+          setAllUsers([selfUser])
+        }
       }
     }
 
