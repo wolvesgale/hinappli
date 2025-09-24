@@ -190,6 +190,6 @@ export const useAuth = () => {
     signOut,
     submitAccessRequest,
     isOwner: authUser?.role === 'owner',
-    isAuthenticated: !!authUser
+    isAuthenticated: !!authUser && (authUser.role === 'owner' || authUser.role === 'cast' || authUser.role === 'driver')
   }
 }

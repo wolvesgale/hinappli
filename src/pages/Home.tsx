@@ -163,7 +163,7 @@ export const Home: React.FC = () => {
         const { data: users, error } = await supabase
           .from('user_roles')
           .select('email, display_name, role')
-          .in('role', ['owner', 'cast'])
+          .in('role', ['owner', 'cast', 'driver'])
           .order('role', { ascending: true })
           .order('display_name', { ascending: true })
 
@@ -399,7 +399,7 @@ export const Home: React.FC = () => {
                           className="text-pink-600 focus:ring-pink-500 focus:ring-offset-gray-800"
                         />
                         <span className="text-sm text-gray-300">
-                          {user.display_name} ({user.role === 'owner' ? 'オーナー' : 'キャスト'})
+                          {user.display_name} ({user.role === 'owner' ? 'オーナー' : user.role === 'cast' ? 'キャスト' : 'ドライバー'})
                         </span>
                       </label>
                     ))}
