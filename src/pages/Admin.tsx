@@ -700,9 +700,15 @@ export const Admin: React.FC = () => {
   // 日本時間（JST）でのdatetime-local形式に変換する関数
   const toJSTDateTimeLocal = (dateString: string): string => {
     const date = new Date(dateString)
-    // 日本時間（UTC+9）に変換
-    const jstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000))
-    return jstDate.toISOString().slice(0, 16)
+    // JavaScriptのDateオブジェクトは自動的にローカルタイムゾーンで処理されるため
+    // 追加のタイムゾーン変換は不要
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`
   }
 
   // Attendance management functions
@@ -721,19 +727,17 @@ export const Admin: React.FC = () => {
         throw new Error('管理者権限が必要です')
       }
 
-      // 日本時間からUTCに変換
-      const startTimeJST = new Date(editAttendanceForm.start_time)
-      const startTimeUTC = new Date(startTimeJST.getTime() - (9 * 60 * 60 * 1000))
+      // datetime-localの値をそのままUTCとして扱う（ユーザーが入力した時間をそのまま保存）
+      const startTimeUTC = new Date(editAttendanceForm.start_time).toISOString()
 
       const updateData: any = {
-        start_time: startTimeUTC.toISOString(),
+        start_time: startTimeUTC,
         companion_checked: editAttendanceForm.companion_checked
       }
 
       if (editAttendanceForm.end_time) {
-        const endTimeJST = new Date(editAttendanceForm.end_time)
-        const endTimeUTC = new Date(endTimeJST.getTime() - (9 * 60 * 60 * 1000))
-        updateData.end_time = endTimeUTC.toISOString()
+        const endTimeUTC = new Date(editAttendanceForm.end_time).toISOString()
+        updateData.end_time = endTimeUTC
       }
 
       const { error } = await supabaseAdmin
