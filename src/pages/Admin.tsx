@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { supabase, supabaseAdmin } from '../lib/supabase'
 import { cleanupOldRegisterPhotos } from '../utils/photoCleanup'
+import { calculateAttendanceHours, calculateTotalAttendanceHours } from '../utils/timeUtils'
 import type { AccessRequest, UserRole } from '../types/database'
 
 interface Transaction {
@@ -336,33 +337,8 @@ export const Admin: React.FC = () => {
           user.attendance_records.push(record)
           
           if (record.end_time) {
-            const start = new Date(record.start_time)
-            const end = new Date(record.end_time)
-            
-            // ドライバーの場合の特別な計算ロジック
-            let hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-            
-            if (user.role === 'driver') {
-              // ドライバーの場合、18時以降の出勤は翌0時出勤とする
-              const startHour = start.getHours()
-              const startMinute = start.getMinutes()
-              
-              // 18時以降の出勤の場合は翌0時出勤とする
-              if (startHour >= 18) {
-                // 翌日の0時を基準時刻として設定
-                const midnightStart = new Date(start)
-                midnightStart.setDate(start.getDate() + 1)
-                midnightStart.setHours(0, 0, 0, 0)
-                
-                // 翌0時から終了時刻までの時間を計算
-                hours = (end.getTime() - midnightStart.getTime()) / (1000 * 60 * 60)
-                
-                // 負の値になる場合は元の計算を使用
-                if (hours < 0) {
-                  hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-                }
-              }
-            }
+            // 15分単位計算を使用
+            const hours = calculateAttendanceHours(record.start_time, record.end_time, user.role)
             
             user.total_hours += hours
             // Set total_pay to 0 as requested
@@ -455,38 +431,7 @@ export const Admin: React.FC = () => {
   }
 
   const calculateTotalHours = (attendances: AttendanceRecord[], userRole?: string) => {
-    return attendances.reduce((total, attendance) => {
-      if (!attendance.end_time) return total
-      
-      const start = new Date(attendance.start_time)
-      const end = new Date(attendance.end_time)
-      
-      // ドライバーの場合の特別な計算ロジック
-      let hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-      
-      if (userRole === 'driver') {
-        // ドライバーの場合、18時以降の出勤は翌0時出勤とする
-        const startHour = start.getHours()
-        
-        // 18時以降の出勤の場合は翌0時出勤とする
-        if (startHour >= 18) {
-          // 翌日の0時を基準時刻として設定
-          const midnightStart = new Date(start)
-          midnightStart.setDate(start.getDate() + 1)
-          midnightStart.setHours(0, 0, 0, 0)
-          
-          // 翌0時から終了時刻までの時間を計算
-          hours = (end.getTime() - midnightStart.getTime()) / (1000 * 60 * 60)
-          
-          // 負の値になる場合は元の計算を使用
-          if (hours < 0) {
-            hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-          }
-        }
-      }
-      
-      return total + hours
-    }, 0)
+    return calculateTotalAttendanceHours(attendances, userRole)
   }
 
   // Remove hourly rate function - no longer needed
@@ -1519,7 +1464,7 @@ export const Admin: React.FC = () => {
                 <p className="text-3xl font-bold text-blue-400">
                   {attendanceData
                     .filter(user => selectedUser === 'all' || user.email === selectedUser)
-                    .reduce((sum, user) => sum + Math.ceil(user.total_hours * 4) / 4, 0).toFixed(1)}時間
+                    .reduce((sum, user) => sum + user.total_hours, 0).toFixed(1)}時間
                 </p>
               </div>
             </div>
@@ -1568,9 +1513,9 @@ export const Admin: React.FC = () => {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-sm text-gray-400">実働時間 → 切り上げ時間</div>
+                            <div className="text-sm text-gray-400">15分単位切り上げ時間</div>
                             <div className="text-lg font-bold text-blue-400">
-                              {user.total_hours.toFixed(1)}時間 → {Math.ceil(user.total_hours * 4) / 4}時間
+                              {user.total_hours.toFixed(1)}時間
                             </div>
                             <div className="text-sm text-gray-400 mt-1">
                               期間: {payrollDateRange === 'week' ? '週次' : '月次'} ({payrollSelectedDate}基準)
@@ -1658,7 +1603,7 @@ export const Admin: React.FC = () => {
                                       </span>
                                       <span>
                                         {record.end_time ? 
-                                          `${((new Date(record.end_time).getTime() - new Date(record.start_time).getTime()) / (1000 * 60 * 60)).toFixed(1)}h` 
+                                          `${calculateAttendanceHours(record.start_time, record.end_time, user.role).toFixed(1)}h (15分単位)` 
                                           : '勤務中'
                                         }
                                       </span>

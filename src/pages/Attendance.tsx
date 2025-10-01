@@ -4,6 +4,7 @@ import { useAuthContext } from '../contexts/AuthProvider'
 import { supabase } from '../lib/supabase'
 import type { Attendance as AttendanceRecord } from '../types/database'
 import { compressAttendancePhoto } from '../utils/imageCompression'
+import { formatWorkTime } from '../utils/timeUtils'
 
 export const Attendance: React.FC = () => {
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([])
@@ -394,15 +395,7 @@ export const Attendance: React.FC = () => {
   }
 
   const calculateWorkTime = (startTime: string, endTime: string | null) => {
-    if (!endTime) return '勤務中'
-    
-    const start = new Date(startTime)
-    const end = new Date(endTime)
-    const diffMs = end.getTime() - start.getTime()
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
-    
-    return `${diffHours}時間${diffMinutes}分`
+    return formatWorkTime(startTime, endTime)
   }
 
   const handleEditAttendance = (attendance: AttendanceRecord) => {
@@ -743,11 +736,11 @@ export const Attendance: React.FC = () => {
                       キャンセル
                     </button>
                   </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
 
         {/* Today's Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
