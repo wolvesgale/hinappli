@@ -215,6 +215,12 @@ export const Attendance: React.FC = () => {
   const handleClockIn = async () => {
     if (!authUser || !authUser.user.email) return
     
+    // 既に出勤中の場合は処理を停止
+    if (currentAttendance) {
+      setError('既に出勤中です。退勤してから再度出勤してください。')
+      return
+    }
+    
     // 写真が必須
     if (!attendancePhoto) {
       setError('出勤時の写真撮影は必須です。先ずは自身とお店を撮影してください。')
@@ -222,6 +228,23 @@ export const Attendance: React.FC = () => {
     }
 
     try {
+      // 出勤中の記録をチェック（二重チェック）
+      const { data: activeAttendance, error: activeCheckError } = await supabase
+        .from('attendances')
+        .select('id')
+        .eq('user_email', authUser.user.email)
+        .is('end_time', null)
+        .limit(1)
+      
+      if (activeCheckError) throw activeCheckError
+      
+      if (activeAttendance && activeAttendance.length > 0) {
+        setError('既に出勤中です。退勤してから再度出勤してください。')
+        // 現在の出勤状態を再確認
+        await checkCurrentAttendance()
+        return
+      }
+
       // 同日中の出勤記録をチェック
       const today = new Date()
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
@@ -287,7 +310,30 @@ export const Attendance: React.FC = () => {
   const handleManualClockIn = async () => {
     if (!authUser || !authUser.user.email || !manualDate || !manualTime) return
 
+    // 既に出勤中の場合は処理を停止
+    if (currentAttendance) {
+      setError('既に出勤中です。退勤してから再度出勤してください。')
+      return
+    }
+
     try {
+      // 出勤中の記録をチェック（二重チェック）
+      const { data: activeAttendance, error: activeCheckError } = await supabase
+        .from('attendances')
+        .select('id')
+        .eq('user_email', authUser.user.email)
+        .is('end_time', null)
+        .limit(1)
+      
+      if (activeCheckError) throw activeCheckError
+      
+      if (activeAttendance && activeAttendance.length > 0) {
+        setError('既に出勤中です。退勤してから再度出勤してください。')
+        // 現在の出勤状態を再確認
+        await checkCurrentAttendance()
+        return
+      }
+
       const dateTime = new Date(`${manualDate}T${manualTime}:00`)
       
       // 指定日の出勤記録をチェック
@@ -873,7 +919,7 @@ export const Attendance: React.FC = () => {
         </div>
 
         {error && (
-          <div className="fixed top-4 right-4 max-w-sm bg-red-900/90 backdrop-blur-sm border border-red-500 text-red-100 rounded-lg p-4 shadow-lg z-50">
+          <div className="fixed top-4 right-4 max-w-sm bg-red-900/90 backdrop-blur-sm border border-red-500 text-red-100 rounded-lg p-4 shadow-lg z-50 animate-pulse">
             <div className="flex items-start">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -881,13 +927,13 @@ export const Attendance: React.FC = () => {
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium">エラーが発生しました</h3>
-                <div className="mt-1 text-sm">{error}</div>
+                <h3 className="text-sm font-medium text-red-200">⚠️ 重要なお知らせ</h3>
+                <div className="mt-1 text-sm font-medium">{error}</div>
               </div>
               <div className="ml-auto pl-3">
                 <button
                   onClick={() => setError('')}
-                  className="inline-flex text-red-400 hover:text-red-300"
+                  className="inline-flex text-red-400 hover:text-red-300 transition-colors"
                 >
                   <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
