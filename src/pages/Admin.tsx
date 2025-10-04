@@ -1469,6 +1469,121 @@ export const Admin: React.FC = () => {
               </div>
             </div>
 
+            {/* Calendar View - 個別ユーザー選択時のみ表示 */}
+            {selectedUser !== 'all' && (
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-white mb-4">
+                  勤怠カレンダー
+                  <span className="text-sm text-gray-400 ml-2">
+                    - {users.find(u => u.email === selectedUser)?.display_name}
+                  </span>
+                </h3>
+                
+                {(() => {
+                  const selectedUserData = attendanceData.find(user => user.email === selectedUser)
+                  if (!selectedUserData || selectedUserData.attendance_records.length === 0) {
+                    return (
+                      <div className="text-center py-8">
+                        <div className="text-gray-300">該当期間の勤怠データはありません</div>
+                      </div>
+                    )
+                  }
+
+                  // 勤怠データを日付ごとにグループ化
+                  const attendanceByDate = selectedUserData.attendance_records.reduce((acc, record) => {
+                    const date = new Date(record.start_time).toLocaleDateString('ja-JP')
+                    if (!acc[date]) {
+                      acc[date] = []
+                    }
+                    acc[date].push(record)
+                    return acc
+                  }, {} as Record<string, AttendanceRecord[]>)
+
+                  // カレンダー表示用の日付範囲を計算
+                  const startDate = new Date(payrollSelectedDate)
+                  const endDate = new Date(startDate)
+                  
+                  if (payrollDateRange === 'week') {
+                    // 週次の場合：選択日から7日間
+                    endDate.setDate(startDate.getDate() + 6)
+                  } else {
+                    // 月次の場合：選択月の全日
+                    startDate.setDate(1)
+                    endDate.setMonth(startDate.getMonth() + 1)
+                    endDate.setDate(0)
+                  }
+
+                  const calendarDays = []
+                  const currentDate = new Date(startDate)
+                  
+                  while (currentDate <= endDate) {
+                    calendarDays.push(new Date(currentDate))
+                    currentDate.setDate(currentDate.getDate() + 1)
+                  }
+
+                  return (
+                    <div className="grid grid-cols-7 gap-2">
+                      {/* 曜日ヘッダー */}
+                      {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => (
+                        <div key={day} className={`text-center text-sm font-semibold py-2 ${
+                          index === 0 ? 'text-red-400' : index === 6 ? 'text-blue-400' : 'text-gray-300'
+                        }`}>
+                          {day}
+                        </div>
+                      ))}
+                      
+                      {/* カレンダー日付 */}
+                      {calendarDays.map((date, index) => {
+                        const dateStr = date.toLocaleDateString('ja-JP')
+                        const dayAttendances = attendanceByDate[dateStr] || []
+                        const totalHours = dayAttendances.reduce((sum, record) => {
+                          return sum + (record.end_time ? calculateAttendanceHours(record.start_time, record.end_time, selectedUserData.role) : 0)
+                        }, 0)
+                        const hasAttendance = dayAttendances.length > 0
+                        const isToday = date.toDateString() === new Date().toDateString()
+                        const dayOfWeek = date.getDay()
+
+                        return (
+                          <div
+                            key={index}
+                            className={`
+                              relative min-h-[60px] p-2 rounded border text-center
+                              ${hasAttendance 
+                                ? 'bg-blue-600/30 border-blue-400/50' 
+                                : 'bg-gray-800/30 border-gray-600/30'
+                              }
+                              ${isToday ? 'ring-2 ring-yellow-400' : ''}
+                            `}
+                          >
+                            <div className={`text-sm font-semibold ${
+                              dayOfWeek === 0 ? 'text-red-400' : 
+                              dayOfWeek === 6 ? 'text-blue-400' : 
+                              'text-white'
+                            }`}>
+                              {date.getDate()}
+                            </div>
+                            
+                            {hasAttendance && (
+                              <div className="mt-1">
+                                <div className="text-xs text-blue-300 font-bold">
+                                  {totalHours.toFixed(1)}h
+                                </div>
+                                {dayAttendances.some(record => record.companion_checked) && (
+                                  <div className="text-xs text-pink-300 mt-1">
+                                    同伴
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
             {/* Individual Payroll - 時給データ削除 */}
             <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg">
               <div className="p-6">
