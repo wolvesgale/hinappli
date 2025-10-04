@@ -1504,8 +1504,10 @@ export const Admin: React.FC = () => {
                   const endDate = new Date(startDate)
                   
                   if (payrollDateRange === 'week') {
-                    // 週次の場合：選択日から7日間
-                    endDate.setDate(startDate.getDate() + 6)
+                    // 週次の場合：選択日を含む週の日曜日から土曜日まで
+                    const dayOfWeek = startDate.getDay() // 0=日曜日, 1=月曜日, ..., 6=土曜日
+                    startDate.setDate(startDate.getDate() - dayOfWeek) // 週の始まり（日曜日）に設定
+                    endDate.setDate(startDate.getDate() + 6) // 週の終わり（土曜日）に設定
                   } else {
                     // 月次の場合：選択月の全日
                     startDate.setDate(1)
