@@ -1489,9 +1489,12 @@ export const Admin: React.FC = () => {
                     )
                   }
 
-                  // 勤怠データを日付ごとにグループ化
+                  // 勤怠データを日付ごとにグループ化（日付跨ぎ対応）
                   const attendanceByDate = selectedUserData.attendance_records.reduce((acc, record) => {
-                    const date = new Date(record.start_time).toLocaleDateString('ja-JP')
+                    // 出勤日を基準として日付を決定（夜勤対応）
+                    const startDate = new Date(record.start_time)
+                    const date = startDate.toLocaleDateString('ja-JP')
+                    
                     if (!acc[date]) {
                       acc[date] = []
                     }

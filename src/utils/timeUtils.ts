@@ -30,27 +30,27 @@ export const calculateAttendanceHours = (
   const start = new Date(startTime)
   const end = new Date(endTime)
   
-  // 基本的な時間計算
+  // 基本的な時間計算（実際の勤務時間）
   let hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
   
-  // ドライバーの場合の特別な計算ロジック
+  // 負の値の場合は0を返す（データエラー対策）
+  if (hours < 0) {
+    console.warn('勤務時間が負の値になりました:', { startTime, endTime })
+    return 0
+  }
+  
+  // ドライバーの場合の特別な計算ロジック（夜勤対応）
   if (userRole === 'driver') {
     const startHour = start.getHours()
+    const endHour = end.getHours()
     
-    // 18時以降の出勤の場合は翌0時出勤とする
-    if (startHour >= 18) {
-      // 翌日の0時を基準時刻として設定
-      const midnightStart = new Date(start)
-      midnightStart.setDate(start.getDate() + 1)
-      midnightStart.setHours(0, 0, 0, 0)
-      
-      // 翌0時から終了時刻までの時間を計算
-      const driverHours = (end.getTime() - midnightStart.getTime()) / (1000 * 60 * 60)
-      
-      // 負の値になる場合は元の計算を使用
-      if (driverHours >= 0) {
-        hours = driverHours
-      }
+    // 夜勤判定：18時以降に出勤し、翌日の朝（6時以前）に退勤する場合
+    const isNightShift = startHour >= 18 && endHour <= 6 && end.getDate() !== start.getDate()
+    
+    if (isNightShift) {
+      // 夜勤の場合：実際の勤務時間をそのまま使用（特別な調整は行わない）
+      // 以前のロジック（翌0時基準）は削除し、実際の勤務時間を正確に計算
+      console.log('夜勤として処理:', { startTime, endTime, hours: hours.toFixed(2) })
     }
   }
   
