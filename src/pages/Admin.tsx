@@ -6,13 +6,27 @@ import { cleanupOldRegisterPhotos } from '../utils/photoCleanup'
 import { calculateAttendanceHours, calculateTotalAttendanceHours } from '../utils/timeUtils'
 import type { AccessRequest, UserRole } from '../types/database'
 
+type PaymentMethod = 'cash' | 'paypay_credit' | 'tsuke'
+
 interface Transaction {
   id: string
   amount: number
-  payment_method: string
+  payment_method: PaymentMethod
   created_at: string
   attributed_to_email?: string | null
 }
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: '現金',
+  paypay_credit: 'PayPay / クレジット',
+  tsuke: 'ツケ'
+}
+
+const PAYMENT_METHOD_OPTIONS: Array<{ value: PaymentMethod; label: string }> = [
+  { value: 'cash', label: '現金' },
+  { value: 'paypay_credit', label: 'PayPay / クレジット' },
+  { value: 'tsuke', label: 'ツケ' }
+]
 
 interface AttendanceRecord {
   id: string
@@ -76,7 +90,7 @@ export const Admin: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<string | null>(null)
   const [editTransactionForm, setEditTransactionForm] = useState({
     amount: 0,
-    payment_method: 'cash' as 'cash' | 'paypay'
+    payment_method: 'cash' as PaymentMethod
   })
   
   // Edit user role state
@@ -577,7 +591,7 @@ export const Admin: React.FC = () => {
     setEditingTransaction(transaction.id)
     setEditTransactionForm({
       amount: transaction.amount,
-      payment_method: transaction.payment_method as 'cash' | 'paypay'
+      payment_method: transaction.payment_method as PaymentMethod
     })
   }
 
@@ -863,6 +877,33 @@ export const Admin: React.FC = () => {
       </header>
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <Link
+            to="/admin/attendance-calendar"
+            className="bg-black/30 border border-white/20 rounded-xl px-4 py-5 hover:bg-black/40 transition-colors"
+          >
+            <div className="text-sm text-gray-300">勤怠管理</div>
+            <div className="text-xl font-semibold text-white mt-2">勤怠カレンダー</div>
+            <p className="text-xs text-gray-400 mt-2">日別の勤怠を確認・編集できます。</p>
+          </Link>
+          <Link
+            to="/admin/sales-calendar"
+            className="bg-black/30 border border-white/20 rounded-xl px-4 py-5 hover:bg-black/40 transition-colors"
+          >
+            <div className="text-sm text-gray-300">売上管理</div>
+            <div className="text-xl font-semibold text-white mt-2">売上カレンダー</div>
+            <p className="text-xs text-gray-400 mt-2">日別の売上と支払い方法を編集できます。</p>
+          </Link>
+          <Link
+            to="/admin/users"
+            className="bg-black/30 border border-white/20 rounded-xl px-4 py-5 hover:bg-black/40 transition-colors"
+          >
+            <div className="text-sm text-gray-300">ユーザー管理</div>
+            <div className="text-xl font-semibold text-white mt-2">招待 &amp; 権限</div>
+            <p className="text-xs text-gray-400 mt-2">新規ユーザーの招待と一覧確認。</p>
+          </Link>
+        </div>
+
         {/* Tab Navigation */}
         <div className="flex flex-wrap gap-2 mb-6">
           <button
@@ -1214,9 +1255,15 @@ export const Admin: React.FC = () => {
                 </p>
               </div>
               <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-white mb-2">PayPay売上</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">PayPay / クレジット売上</h3>
                 <p className="text-3xl font-bold text-purple-400">
-                  ¥{transactions.filter(t => t.payment_method === 'paypay').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
+                  ¥{transactions.filter(t => t.payment_method === 'paypay_credit').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-black/30 backdrop-blur-sm border border-white/20 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-white mb-2">ツケ売上</h3>
+                <p className="text-3xl font-bold text-yellow-400">
+                  ¥{transactions.filter(t => t.payment_method === 'tsuke').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -1336,12 +1383,15 @@ export const Admin: React.FC = () => {
                                 value={editTransactionForm.payment_method}
                                 onChange={(e) => setEditTransactionForm({
                                   ...editTransactionForm,
-                                  payment_method: e.target.value as 'cash' | 'paypay'
+                                  payment_method: e.target.value as PaymentMethod
                                 })}
                                 className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                               >
-                                <option value="cash">現金</option>
-                                <option value="paypay">PayPay</option>
+                                {PAYMENT_METHOD_OPTIONS.map(option => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
                               </select>
                             </div>
                             <div className="flex space-x-2">
@@ -1372,7 +1422,7 @@ export const Admin: React.FC = () => {
                               <div>
                                 <div className="text-sm text-gray-400">支払方法</div>
                                 <div className="text-white font-semibold">
-                                  {transaction.payment_method === 'cash' ? '現金' : 'PayPay'}
+                                  {PAYMENT_METHOD_LABELS[transaction.payment_method]}
                                 </div>
                               </div>
                             </div>
