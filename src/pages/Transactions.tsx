@@ -4,13 +4,19 @@ import { useAuthContext } from '../contexts/AuthProvider'
 import { supabase } from '../lib/supabase'
 import type { Transaction, UserRole } from '../types/database'
 
+const PAYMENT_METHOD_LABELS: Record<Transaction['payment_method'], string> = {
+  cash: '現金',
+  paypay_credit: 'PayPay / クレジット',
+  tsuke: 'ツケ'
+}
+
 export const Transactions: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newTransaction, setNewTransaction] = useState({
     amount: '',
-    paymentMethod: 'cash',
+    paymentMethod: 'cash' as Transaction['payment_method'],
     memo: '',
     attributedToEmail: '' // Single selection instead of array
   })
@@ -199,7 +205,7 @@ export const Transactions: React.FC = () => {
                         ¥{transaction.amount.toLocaleString()}
                       </div>
                       <div className="text-sm text-gray-400">
-                        {transaction.payment_method} • {new Date(transaction.created_at).toLocaleTimeString('ja-JP')}
+                        {PAYMENT_METHOD_LABELS[transaction.payment_method]} • {new Date(transaction.created_at).toLocaleTimeString('ja-JP')}
                       </div>
                       {transaction.memo && (
                         <div className="text-sm text-gray-300 mt-1">
