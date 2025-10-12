@@ -346,9 +346,25 @@ export const AttendanceCalendar: React.FC = () => {
     }
   }
 
+  const userMetaByEmail = useMemo(() => {
+    return userRoles.reduce<Record<string, { displayName: string; role: UserRole['role'] }>>(
+      (acc, user) => {
+        acc[user.email] = {
+          displayName: user.display_name || user.email,
+          role: user.role
+        }
+        return acc
+      },
+      {}
+    )
+  }, [userRoles])
+
   const getDisplayName = (email: string) => {
-    const found = userRoles.find(user => user.email === email)
-    return found ? `${found.display_name}（${found.role}）` : email
+    return userMetaByEmail[email]?.displayName ?? email
+  }
+
+  const getRoleLabel = (email: string) => {
+    return userMetaByEmail[email]?.role ?? ''
   }
 
   if (!authUser) {
@@ -485,7 +501,11 @@ export const AttendanceCalendar: React.FC = () => {
                           <div className="text-base font-semibold">
                             {getDisplayName(attendance.user_email)}
                           </div>
-                          <div className="text-xs text-gray-400">{attendance.user_email}</div>
+                          {getRoleLabel(attendance.user_email) && (
+                            <div className="text-xs text-gray-400">
+                              権限: {getRoleLabel(attendance.user_email)}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <button
