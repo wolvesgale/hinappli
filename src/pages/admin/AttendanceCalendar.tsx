@@ -6,6 +6,9 @@ import type { Attendance, UserRole } from '../../types/database'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
+const normalizeEmail = (value: string | null | undefined) =>
+  (value ?? '').trim().toLowerCase()
+
 const formatJstDateKey = (value: string | Date) => {
   const date = typeof value === 'string' ? new Date(value) : value
   const formatted = date.toLocaleString('sv-SE', {
@@ -147,8 +150,9 @@ export const AttendanceCalendar: React.FC = () => {
             grouped[key] = []
           }
           grouped[key].push(record)
-          if (record.user_email && !(record.user_email in cache)) {
-            cache[record.user_email] = record.user_id ?? null
+          const normalizedEmail = normalizeEmail(record.user_email)
+          if (normalizedEmail && !(normalizedEmail in cache)) {
+            cache[normalizedEmail] = record.user_id ?? null
           }
         })
 
@@ -319,7 +323,7 @@ export const AttendanceCalendar: React.FC = () => {
     try {
       const payload = {
         user_email: newAttendanceForm.userEmail,
-        user_id: userIdCache[newAttendanceForm.userEmail] ?? null,
+        user_id: userIdCache[normalizeEmail(newAttendanceForm.userEmail)] ?? null,
         start_time: toIsoFromLocal(newAttendanceForm.startDateTime),
         end_time: newAttendanceForm.endDateTime ? toIsoFromLocal(newAttendanceForm.endDateTime) : null,
         companion_checked: newAttendanceForm.companion
@@ -349,7 +353,8 @@ export const AttendanceCalendar: React.FC = () => {
   const userMetaByEmail = useMemo(() => {
     return userRoles.reduce<Record<string, { displayName: string; role: UserRole['role'] }>>(
       (acc, user) => {
-        acc[user.email] = {
+        const key = normalizeEmail(user.email)
+        acc[key] = {
           displayName: user.display_name || user.email,
           role: user.role
         }
@@ -360,11 +365,13 @@ export const AttendanceCalendar: React.FC = () => {
   }, [userRoles])
 
   const getDisplayName = (email: string) => {
-    return userMetaByEmail[email]?.displayName ?? email
+    const normalized = normalizeEmail(email)
+    return userMetaByEmail[normalized]?.displayName ?? email
   }
 
   const getRoleLabel = (email: string) => {
-    return userMetaByEmail[email]?.role ?? ''
+    const normalized = normalizeEmail(email)
+    return userMetaByEmail[normalized]?.role ?? ''
   }
 
   if (!authUser) {
