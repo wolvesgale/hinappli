@@ -42,3 +42,8 @@ export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
 export function attendanceEmailLabel(row: AttendanceRow): string {
   return (row.user_email || "").trim()
 }
+
+// ───────────────────────────────────────────
+// ⚠ 重要: ここに "export function toDisplayName" は存在しない。
+// ファイル末尾に余計な再エクスポートも追加しないこと。
+// ───────────────────────────────────────────
