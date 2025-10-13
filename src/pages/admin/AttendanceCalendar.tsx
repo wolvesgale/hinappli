@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthProvider'
 import { supabase } from '../../lib/supabase'
 import type { Attendance, UserRole } from '../../types/database'
-import { displayFrom } from '../../utils/format'
+import { displayOrEmail } from '../../utils/format'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -12,49 +12,45 @@ const normalizeEmail = (value: string | null | undefined) =>
 
 type AttendanceCalendarRecord = Attendance & { display_name: string }
 
-type AttendanceFetchRow = Pick<
+type AttRow = Pick<
   Attendance,
   'id' | 'user_id' | 'user_email' | 'start_time' | 'end_time' | 'companion_checked' | 'created_at'
 >
-type UserRoleDisplayRow = Pick<UserRole, 'email' | 'display_name'>
 
-async function fetchMonthAttendancesMerged(fromIso: string, toIso: string): Promise<AttendanceCalendarRecord[]> {
+type RoleRow = Pick<UserRole, 'email' | 'display_name'>
+
+async function fetchMonthAttendancesWithDisplay(
+  fromIso: string,
+  toIso: string
+): Promise<AttendanceCalendarRecord[]> {
   const { data: rows, error: attendanceError } = await supabase
     .from('attendances')
-    .select<AttendanceFetchRow>(
-      'id,user_id,user_email,start_time,end_time,companion_checked,created_at'
-    )
+    .select<AttRow>('id,user_id,user_email,start_time,end_time,companion_checked,created_at')
     .gte('start_time', fromIso)
     .lt('start_time', toIso)
     .order('start_time', { ascending: true })
 
   if (attendanceError) throw attendanceError
 
-  const safeRows = (rows ?? []) as AttendanceFetchRow[]
+  const safeRows = (rows ?? []) as AttRow[]
   const emails = [...new Set(safeRows.map(row => row.user_email).filter(Boolean))]
 
   let roleMap = new Map<string, string | null>()
   if (emails.length > 0) {
     const { data: roles, error: rolesError } = await supabase
       .from('user_roles')
-      .select<UserRoleDisplayRow>('email,display_name')
+      .select<RoleRow>('email,display_name')
       .in('email', emails)
 
     if (rolesError) throw rolesError
 
-    const safeRoles = (roles ?? []) as UserRoleDisplayRow[]
-    roleMap = new Map(
-      safeRoles.map(role => {
-        const normalized = normalizeEmail(role.email)
-        const trimmed = role.display_name.trim()
-        return [normalized, trimmed.length > 0 ? trimmed : null]
-      })
-    )
+    const safeRoles = (roles ?? []) as RoleRow[]
+    roleMap = new Map(safeRoles.map(role => [normalizeEmail(role.email), role.display_name ?? null]))
   }
 
   return safeRows.map(row => ({
     ...row,
-    display_name: displayFrom(row.user_email, roleMap.get(normalizeEmail(row.user_email)) ?? null)
+    display_name: displayOrEmail(row.user_email, roleMap.get(normalizeEmail(row.user_email)) ?? null)
   }))
 }
 
@@ -177,7 +173,7 @@ export const AttendanceCalendar: React.FC = () => {
     const rangeEnd = new Date(Date.UTC(year, monthIndex + 1, 1, 12, 0, 0)).toISOString()
 
     try {
-      const rows = await fetchMonthAttendancesMerged(rangeStart, rangeEnd)
+      const rows = await fetchMonthAttendancesWithDisplay(rangeStart, rangeEnd)
 
       const grouped: Record<string, AttendanceCalendarRecord[]> = {}
       const cache: Record<string, string | null> = {}
