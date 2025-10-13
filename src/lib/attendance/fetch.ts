@@ -1,71 +1,46 @@
+import { SUPABASE_ANON_KEY, SUPABASE_REST_BASE } from '@/lib/env.client'
+
 export type AttendanceRow = {
   id: string
   user_email: string | null
-  start_time: string    // ISO
+  start_time: string
   end_time: string | null
-  companion_checked: boolean | null
+  companion_checked?: boolean | null
 }
 
-function readEnv(key: string): string | undefined {
-  if (typeof process !== 'undefined' && process.env && process.env[key]) {
-    return process.env[key]
-  }
-
-  if (typeof import.meta !== 'undefined' && (import.meta as any)?.env) {
-    const metaEnv = (import.meta as any).env as Record<string, string | undefined>
-    return metaEnv[key]
-  }
-
-  return undefined
-}
-
-function getRestBase(): string {
-  const rest = readEnv('NEXT_PUBLIC_SUPABASE_REST_URL')
-  const url = readEnv('NEXT_PUBLIC_SUPABASE_URL')
-  const base = rest || (url ? `${url.replace(/\/+$/, '')}/rest/v1` : '')
-
+function assertRestBase(): string {
+  const base = SUPABASE_REST_BASE?.replace(/\/+$/, '')
   if (!base) {
-    throw new Error('Supabase REST base URL is not set')
+    throw new Error('Supabase REST base URL is not set (check env or fallback).')
   }
-
-  return base.replace(/\/+$/, '')
+  return base
 }
 
 function authHeaders() {
-  const anon = readEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
-  if (!anon) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not set')
+  if (!SUPABASE_ANON_KEY) {
+    throw new Error('Supabase anon key is not set (check env or fallback).')
   }
-
-  return {
-    apikey: anon,
-    Authorization: `Bearer ${anon}`,
-  }
+  return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
 }
 
 /** from <= start_time < to の勤怠を取得（メール表記で復旧） */
 export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
-  const base = getRestBase()
+  const base = assertRestBase()
   const url = new URL(`${base}/attendances`)
-
-  url.searchParams.set(
-    'select',
-    'id,user_email,start_time,end_time,companion_checked'
-  )
+  url.searchParams.set('select', 'id,user_email,start_time,end_time,companion_checked')
   url.searchParams.set('start_time', `gte.${fromISO}`)
   url.searchParams.append('start_time', `lt.${toISO}`)
   url.searchParams.set('order', 'start_time.asc')
 
   const res = await fetch(url.toString(), { headers: authHeaders(), cache: 'no-store' })
   if (!res.ok) {
-    const text = await res.text()
+    const text = await res.text().catch(() => '')
     throw new Error(`fetchAttendancesInRange failed: ${res.status} ${text}`)
   }
-  const rows = (await res.json()) as AttendanceRow[]
-  return rows
+  return (await res.json()) as AttendanceRow[]
 }
 
-/** 画面表示用。今回の復旧では必ずメールを返す */
+/** 表示名はメール固定 */
 export function toDisplayName(row: AttendanceRow): string {
   return (row.user_email || '').trim()
 }
