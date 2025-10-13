@@ -9,6 +9,9 @@ import AccessRequestPage from './pages/AccessRequestPage'
 import { Transactions } from './pages/Transactions'
 import { Attendance } from './pages/Attendance'
 import { Admin } from './pages/Admin'
+import AttendanceCalendar from './pages/admin/AttendanceCalendar'
+import SalesCalendar from './pages/admin/SalesCalendar'
+import UsersAdmin from './pages/admin/Users'
 import './App.css'
 
 function App() {
@@ -61,13 +64,37 @@ function App() {
           />
           
           {/* Owner Only Routes */}
-          <Route 
-            path="/admin" 
+          <Route
+            path="/admin"
             element={
               <RequireOwner>
                 <Admin />
               </RequireOwner>
-            } 
+            }
+          />
+          <Route
+            path="/admin/attendance-calendar"
+            element={
+              <RequireOwner>
+                <AttendanceCalendar />
+              </RequireOwner>
+            }
+          />
+          <Route
+            path="/admin/sales-calendar"
+            element={
+              <RequireOwner>
+                <SalesCalendar />
+              </RequireOwner>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <RequireOwner>
+                <UsersAdmin />
+              </RequireOwner>
+            }
           />
           
           {/* Catch all route */}
