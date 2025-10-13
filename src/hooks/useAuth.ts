@@ -44,29 +44,34 @@ export const useAuth = () => {
   const loadUserWithRole = async (user: User) => {
     try {
       console.log('loadUserWithRole called for user:', user.email)
-      
+
       // タイムアウト付きでユーザーロールを取得
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Timeout')), 5000)
       )
-      
+
       const rolePromise = getUserRole(user.email!)
       const roleData = await Promise.race([rolePromise, timeoutPromise]) as any
-      
+
       console.log('Role data received:', roleData)
-      
+
+      const fallbackRole = (user.user_metadata as any)?.role || (user.app_metadata as any)?.role || null
+      const fallbackDisplayName = (user.user_metadata as any)?.display_name || null
+
       setAuthUser({
         user,
-        role: roleData?.role || null,
-        displayName: roleData?.display_name || null
+        role: roleData?.role || fallbackRole,
+        displayName: roleData?.display_name || fallbackDisplayName
       })
     } catch (error) {
       console.error('Error loading user role:', error)
+      const fallbackRole = (user.user_metadata as any)?.role || (user.app_metadata as any)?.role || null
+      const fallbackDisplayName = (user.user_metadata as any)?.display_name || null
       // エラーが発生してもユーザーは認証済みとして扱う
       setAuthUser({
         user,
-        role: null,
-        displayName: null
+        role: fallbackRole,
+        displayName: fallbackDisplayName
       })
     } finally {
       // 必ずローディングを終了
@@ -190,6 +195,6 @@ export const useAuth = () => {
     signOut,
     submitAccessRequest,
     isOwner: authUser?.role === 'owner',
-    isAuthenticated: !!authUser && (authUser.role === 'owner' || authUser.role === 'cast' || authUser.role === 'driver')
+    isAuthenticated: !!authUser
   }
 }
