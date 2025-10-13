@@ -1,32 +1,44 @@
+import { SUPABASE_ANON_KEY, SUPABASE_REST_BASE } from '@/lib/env.client'
+
 export type AttendanceRow = {
   id: string
-  user_id: string | null
-  user_email: string
+  user_email: string | null
   start_time: string
   end_time: string | null
-  companion_checked: boolean
-  created_at: string
-  role: string | null
-  display_name: string
 }
 
-const DEFAULT_BASE_URL = 'http://localhost'
+function headers() {
+  if (!SUPABASE_ANON_KEY) {
+    throw new Error('anon key empty')
+  }
+  return { apikey: SUPABASE_ANON_KEY }
+}
 
 export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : DEFAULT_BASE_URL
-  const url = new URL('/api/admin/attendance-range', baseUrl)
-  url.searchParams.set('from', fromISO)
-  url.searchParams.set('to', toISO)
+  if (!SUPABASE_REST_BASE) {
+    throw new Error('REST base empty')
+  }
+  const url = new URL(`${SUPABASE_REST_BASE}/attendances`)
+  url.searchParams.set('select', 'id,user_email,start_time,end_time')
+  url.searchParams.set('start_time', `gte.${fromISO}`)
+  url.searchParams.append('start_time', `lt.${toISO}`)
+  url.searchParams.set('order', 'start_time.asc')
 
-  const response = await fetch(url.toString(), { cache: 'no-store' })
-  if (!response.ok) {
-    throw new Error(`attendance-range: ${response.status}`)
+  const res = await fetch(url.toString(), { headers: headers(), cache: 'no-store' })
+
+  if (res.status === 401 || res.status === 403) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`AUTH_${res.status}: ${body || 'Invalid anon key or project ref.'}`)
   }
 
-  const rows = (await response.json()) as AttendanceRow[]
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`HTTP_${res.status}: ${body}`)
+  }
 
-  return rows.map(row => ({
-    ...row,
-    display_name: (row.display_name || row.user_email || '').trim()
-  }))
+  return (await res.json()) as AttendanceRow[]
+}
+
+export function toDisplayName(row: AttendanceRow): string {
+  return (row.user_email || '').trim()
 }
