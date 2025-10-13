@@ -1,3 +1,8 @@
-export function displayOrEmail(email: string, display?: string | null) {
-  return display && display.trim().length > 0 ? display : email
+export function displayOrEmail(email?: string | null, display?: string | null) {
+  const safeEmail = email ?? ''
+  const safeDisplay = display?.trim()
+  if (safeDisplay) {
+    return safeDisplay
+  }
+  return safeEmail
 }

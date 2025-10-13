@@ -48,10 +48,14 @@ async function fetchMonthAttendancesWithDisplay(
     roleMap = new Map(safeRoles.map(role => [normalizeEmail(role.email), role.display_name ?? null]))
   }
 
-  return safeRows.map(row => ({
-    ...row,
-    display_name: displayOrEmail(row.user_email, roleMap.get(normalizeEmail(row.user_email)) ?? null)
-  }))
+  return safeRows.map(row => {
+    const normalized = normalizeEmail(row.user_email)
+    const displayName = displayOrEmail(row.user_email, roleMap.get(normalized) ?? null)
+    return {
+      ...row,
+      display_name: displayName
+    }
+  })
 }
 
 const formatJstDateKey = (value: string | Date) => {
@@ -468,6 +472,9 @@ export const AttendanceCalendar: React.FC = () => {
                 }
 
                 const companionCount = cell.records.filter(record => record.companion_checked).length
+                const uniqueNames = Array.from(new Set(cell.records.map(record => record.display_name)))
+                const visibleNames = uniqueNames.slice(0, 3)
+                const remainingCount = uniqueNames.length - visibleNames.length
 
                 return (
                   <button
@@ -488,8 +495,8 @@ export const AttendanceCalendar: React.FC = () => {
                     {cell.records.length > 0 ? (
                       <div className="mt-2 space-y-1 text-xs text-gray-200">
                         <div>
-                          出勤者: {cell.records.slice(0, 3).map(record => record.display_name).join(', ')}
-                          {cell.records.length > 3 && ' 他'}
+                          出勤者: {visibleNames.join(', ')}
+                          {remainingCount > 0 && ` 他${remainingCount}名`}
                         </div>
                         {companionCount > 0 && (
                           <div className="text-emerald-300">同伴 {companionCount}件</div>
