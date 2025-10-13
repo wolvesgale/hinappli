@@ -335,19 +335,6 @@ export const AttendanceCalendar: React.FC = () => {
     }
   }
 
-  const userRoleByEmail = useMemo(() => {
-    return userRoles.reduce<Record<string, UserRole['role']>>((acc, user) => {
-      const key = normalizeEmail(user.email)
-      acc[key] = user.role
-      return acc
-    }, {})
-  }, [userRoles])
-
-  const getRoleLabel = (email: string) => {
-    const normalized = normalizeEmail(email)
-    return userRoleByEmail[normalized] ?? ''
-  }
-
   if (!authUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 flex items-center justify-center">
@@ -498,9 +485,9 @@ export const AttendanceCalendar: React.FC = () => {
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
                           <div className="text-base font-semibold">{attendance.display_name}</div>
-                          {getRoleLabel(attendance.user_email) && (
+                          {attendance.role && (
                             <div className="text-xs text-gray-400">
-                              権限: {getRoleLabel(attendance.user_email)}
+                              権限: {attendance.role}
                             </div>
                           )}
                         </div>
