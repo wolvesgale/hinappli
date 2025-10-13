@@ -161,7 +161,18 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_attendances_with_roles: {
+        Row: {
+          id: string
+          user_id: string | null
+          user_email: string
+          display_name_raw: string
+          start_time: string
+          end_time: string | null
+          companion_checked: boolean
+          created_at: string
+        }
+      }
     }
     Functions: {
       [_ in never]: never
