@@ -61,7 +61,6 @@ export const AttendanceCalendar: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(getInitialMonth())
   const [attendanceByDate, setAttendanceByDate] = useState<Record<string, AttendanceCalendarRecord[]>>({})
   const [userRoles, setUserRoles] = useState<UserRole[]>([])
-  const [userIdCache, setUserIdCache] = useState<Record<string, string | null>>({})
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [editForms, setEditForms] = useState<Record<string, AttendanceEditForm>>({})
   const [newAttendanceForm, setNewAttendanceForm] = useState<NewAttendanceForm>({
@@ -73,7 +72,7 @@ export const AttendanceCalendar: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userRolesError, setUserRolesError] = useState('')
-  const [loadIssue, setLoadIssue] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [modalError, setModalError] = useState('')
 
   const calendarMeta = useMemo(() => {
@@ -134,7 +133,6 @@ export const AttendanceCalendar: React.FC = () => {
       const rows = await fetchAttendancesInRange(rangeStart, rangeEnd)
 
       const grouped: Record<string, AttendanceCalendarRecord[]> = {}
-      const cache: Record<string, string | null> = {}
 
       rows.forEach(record => {
         if (!record.start_time) return
@@ -143,10 +141,6 @@ export const AttendanceCalendar: React.FC = () => {
           grouped[key] = []
         }
         grouped[key].push(record)
-        const normalizedEmail = normalizeEmail(record.user_email)
-        if (normalizedEmail && !(normalizedEmail in cache)) {
-          cache[normalizedEmail] = record.user_id ?? null
-        }
       })
 
       Object.keys(grouped).forEach(dateKey => {
@@ -154,14 +148,11 @@ export const AttendanceCalendar: React.FC = () => {
       })
 
       setAttendanceByDate(grouped)
-      setUserIdCache(cache)
-      setLoadIssue(false)
+      setLoadError(null)
     } catch (err) {
       console.error('attendance fetch error', err)
       setAttendanceByDate({})
-      setUserIdCache({})
-      setLoadIssue(true)
-      throw err
+      setLoadError('勤怠データの取得に失敗しました。環境変数とネットワークを確認してください。')
     }
   }, [currentMonth])
 
@@ -225,8 +216,6 @@ export const AttendanceCalendar: React.FC = () => {
     setLoading(true)
     try {
       await refresh()
-    } catch (err) {
-      // refresh already logs and updates the fallback state
     } finally {
       setLoading(false)
     }
@@ -307,7 +296,10 @@ export const AttendanceCalendar: React.FC = () => {
     try {
       const payload = {
         user_email: newAttendanceForm.userEmail,
-        user_id: userIdCache[normalizeEmail(newAttendanceForm.userEmail)] ?? null,
+        user_id:
+          userRoles.find(
+            user => normalizeEmail(user.email) === normalizeEmail(newAttendanceForm.userEmail)
+          )?.user_id ?? null,
         start_time: toIsoFromLocal(newAttendanceForm.startDateTime),
         end_time: newAttendanceForm.endDateTime ? toIsoFromLocal(newAttendanceForm.endDateTime) : null,
         companion_checked: newAttendanceForm.companion
@@ -382,9 +374,9 @@ export const AttendanceCalendar: React.FC = () => {
           </div>
         )}
 
-        {loadIssue && (
+        {loadError && (
           <div className="mt-4 bg-amber-500/10 text-amber-100 px-4 py-3 rounded-lg flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>最新の勤怠データを表示できませんでした。再読み込みをお試しください。</span>
+            <span>{loadError}</span>
             <button
               onClick={handleRetry}
               className="inline-flex items-center justify-center px-4 py-2 rounded bg-amber-500/40 hover:bg-amber-500/60 transition disabled:opacity-60"

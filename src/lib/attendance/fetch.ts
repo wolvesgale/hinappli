@@ -1,8 +1,7 @@
 export type AttendanceRow = {
   id: string
-  user_id: string | null
   user_email: string | null
-  start_time: string
+  start_time: string    // ISO
   end_time: string | null
   companion_checked: boolean | null
 }
@@ -21,17 +20,15 @@ function readEnv(key: string): string | undefined {
 }
 
 function getRestBase(): string {
-  const explicit = readEnv('NEXT_PUBLIC_SUPABASE_REST_URL')
-  if (explicit) {
-    return explicit.replace(/\/+$/, '')
-  }
+  const rest = readEnv('NEXT_PUBLIC_SUPABASE_REST_URL')
+  const url = readEnv('NEXT_PUBLIC_SUPABASE_URL')
+  const base = rest || (url ? `${url.replace(/\/+$/, '')}/rest/v1` : '')
 
-  const projectUrl = readEnv('NEXT_PUBLIC_SUPABASE_URL')
-  if (!projectUrl) {
+  if (!base) {
     throw new Error('Supabase REST base URL is not set')
   }
 
-  return `${projectUrl.replace(/\/+$/, '')}/rest/v1`
+  return base.replace(/\/+$/, '')
 }
 
 function authHeaders() {
@@ -53,14 +50,17 @@ export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
 
   url.searchParams.set(
     'select',
-    'id,user_id,user_email,start_time,end_time,companion_checked'
+    'id,user_email,start_time,end_time,companion_checked'
   )
   url.searchParams.set('start_time', `gte.${fromISO}`)
   url.searchParams.append('start_time', `lt.${toISO}`)
   url.searchParams.set('order', 'start_time.asc')
 
   const res = await fetch(url.toString(), { headers: authHeaders(), cache: 'no-store' })
-  if (!res.ok) throw new Error(`fetchAttendancesInRange failed: ${res.status}`)
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`fetchAttendancesInRange failed: ${res.status} ${text}`)
+  }
   const rows = (await res.json()) as AttendanceRow[]
   return rows
 }
