@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthProvider'
 import { RegisterManager } from '../components/RegisterManager'
 import { supabase, supabaseAdmin } from '../lib/supabase'
+import { getNameForEmail, prefetchNames } from '@/lib/names/resolver'
 
 export const Home: React.FC = () => {
   const { authUser, signOut, isOwner } = useAuthContext()
@@ -99,8 +100,10 @@ export const Home: React.FC = () => {
         }
 
         // 出勤中のメンバーのemailリストを取得
-        const emails = [...new Set(validAttendances.map(a => a.user_email).filter(Boolean))]
+        const emails = [...new Set(validAttendances.map(a => a.user_email).filter((value): value is string => Boolean(value)))]
         console.log('fetchAttendingMembers: ユニークなメールアドレス', emails)
+
+        await prefetchNames(emails)
 
         // user_rolesから役割情報をまとめて取得（emailベース）
         const { data: roles, error: roleError } = await client
@@ -113,13 +116,19 @@ export const Home: React.FC = () => {
         if (roleError) {
           console.error('fetchAttendingMembers: ロールデータエラー', roleError)
           // エラー時はemailのみで表示
-          const fallbackMembers = validAttendances.map(attendance => ({
-            email: attendance.user_email,
-            display_name: attendance.user_email,
-            role: 'cast',
-            start_time: attendance.start_time,
-            companion_checked: attendance.companion_checked || false
-          }))
+          const fallbackMembers = await Promise.all(
+            validAttendances.map(async attendance => {
+              const email = attendance.user_email
+              const resolvedName = email ? await getNameForEmail(email) : ''
+              return {
+                email,
+                display_name: resolvedName || email,
+                role: 'cast',
+                start_time: attendance.start_time,
+                companion_checked: attendance.companion_checked || false
+              }
+            })
+          )
           setAttendingMembers(fallbackMembers)
           return
         }
