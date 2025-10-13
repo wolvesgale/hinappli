@@ -39,3 +39,8 @@ export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
 export function toDisplayName(row: AttendanceRow): string {
   return (row.user_email || "").trim();
 }
+
+export function toDisplayName(row: AttendanceRow): string {
+  return (row.user_email || '').trim()
+}
+
