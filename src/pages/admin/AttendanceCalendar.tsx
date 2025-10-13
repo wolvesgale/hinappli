@@ -1,16 +1,62 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthProvider'
 import { supabase } from '../../lib/supabase'
-import type { AttendanceWithRole, UserRole } from '../../types/database'
-import { displayNameOrMasked } from '../../utils/format'
+import type { Attendance, UserRole } from '../../types/database'
+import { displayFrom } from '../../utils/format'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
 const normalizeEmail = (value: string | null | undefined) =>
   (value ?? '').trim().toLowerCase()
 
-type AttendanceCalendarRecord = AttendanceWithRole & { display_name: string }
+type AttendanceCalendarRecord = Attendance & { display_name: string }
+
+type AttendanceFetchRow = Pick<
+  Attendance,
+  'id' | 'user_id' | 'user_email' | 'start_time' | 'end_time' | 'companion_checked' | 'created_at'
+>
+type UserRoleDisplayRow = Pick<UserRole, 'email' | 'display_name'>
+
+async function fetchMonthAttendancesMerged(fromIso: string, toIso: string): Promise<AttendanceCalendarRecord[]> {
+  const { data: rows, error: attendanceError } = await supabase
+    .from('attendances')
+    .select<AttendanceFetchRow>(
+      'id,user_id,user_email,start_time,end_time,companion_checked,created_at'
+    )
+    .gte('start_time', fromIso)
+    .lt('start_time', toIso)
+    .order('start_time', { ascending: true })
+
+  if (attendanceError) throw attendanceError
+
+  const safeRows = (rows ?? []) as AttendanceFetchRow[]
+  const emails = [...new Set(safeRows.map(row => row.user_email).filter(Boolean))]
+
+  let roleMap = new Map<string, string | null>()
+  if (emails.length > 0) {
+    const { data: roles, error: rolesError } = await supabase
+      .from('user_roles')
+      .select<UserRoleDisplayRow>('email,display_name')
+      .in('email', emails)
+
+    if (rolesError) throw rolesError
+
+    const safeRoles = (roles ?? []) as UserRoleDisplayRow[]
+    roleMap = new Map(
+      safeRoles.map(role => {
+        const normalized = normalizeEmail(role.email)
+        const trimmed = role.display_name.trim()
+        return [normalized, trimmed.length > 0 ? trimmed : null]
+      })
+    )
+  }
+
+  return safeRows.map(row => ({
+    ...row,
+    display_name: displayFrom(row.user_email, roleMap.get(normalizeEmail(row.user_email)) ?? null)
+  }))
+}
 
 const formatJstDateKey = (value: string | Date) => {
   const date = typeof value === 'string' ? new Date(value) : value
@@ -72,7 +118,8 @@ export const AttendanceCalendar: React.FC = () => {
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [userRolesError, setUserRolesError] = useState('')
+  const [loadIssue, setLoadIssue] = useState(false)
   const [modalError, setModalError] = useState('')
 
   const calendarMeta = useMemo(() => {
@@ -110,17 +157,18 @@ export const AttendanceCalendar: React.FC = () => {
 
       if (rolesError) {
         console.error(rolesError)
-        setError('ユーザー一覧の取得に失敗しました')
+        setUserRolesError('ユーザー一覧の取得に失敗しました')
         return
       }
 
+      setUserRolesError('')
       setUserRoles(data || [])
     }
 
     fetchUserRoles()
   }, [])
 
-  const fetchAttendanceState = async () => {
+  const refresh = useCallback(async () => {
     const [yearString, monthString] = currentMonth.split('-')
     const year = Number(yearString)
     const monthIndex = Number(monthString) - 1
@@ -128,62 +176,62 @@ export const AttendanceCalendar: React.FC = () => {
     const rangeStart = new Date(Date.UTC(year, monthIndex, 1, -12, 0, 0)).toISOString()
     const rangeEnd = new Date(Date.UTC(year, monthIndex + 1, 1, 12, 0, 0)).toISOString()
 
-    const { data, error } = await supabase
-      .from('v_attendances_with_roles')
-      .select('*')
-      .gte('start_time', rangeStart)
-      .lt('start_time', rangeEnd)
-      .order('start_time', { ascending: true })
+    try {
+      const rows = await fetchMonthAttendancesMerged(rangeStart, rangeEnd)
 
-    if (error) {
-      throw error
+      const grouped: Record<string, AttendanceCalendarRecord[]> = {}
+      const cache: Record<string, string | null> = {}
+
+      rows.forEach(record => {
+        if (!record.start_time) return
+        const key = formatJstDateKey(record.start_time)
+        if (!grouped[key]) {
+          grouped[key] = []
+        }
+        grouped[key].push(record)
+        const normalizedEmail = normalizeEmail(record.user_email)
+        if (normalizedEmail && !(normalizedEmail in cache)) {
+          cache[normalizedEmail] = record.user_id ?? null
+        }
+      })
+
+      Object.keys(grouped).forEach(dateKey => {
+        grouped[dateKey].sort((a, b) => a.start_time.localeCompare(b.start_time))
+      })
+
+      setAttendanceByDate(grouped)
+      setUserIdCache(cache)
+      setLoadIssue(false)
+    } catch (err) {
+      console.error('attendance fetch error', err)
+      setAttendanceByDate({})
+      setUserIdCache({})
+      setLoadIssue(true)
+      throw err
     }
-
-    const grouped: Record<string, AttendanceCalendarRecord[]> = {}
-    const cache: Record<string, string | null> = {}
-
-    ;(data || []).forEach(record => {
-      if (!record.start_time) return
-      const enriched: AttendanceCalendarRecord = {
-        ...record,
-        display_name: displayNameOrMasked(record.display_name_raw)
-      }
-      const key = formatJstDateKey(enriched.start_time)
-      if (!grouped[key]) {
-        grouped[key] = []
-      }
-      grouped[key].push(enriched)
-      const normalizedEmail = normalizeEmail(enriched.user_email)
-      if (normalizedEmail && !(normalizedEmail in cache)) {
-        cache[normalizedEmail] = enriched.user_id ?? null
-      }
-    })
-
-    Object.keys(grouped).forEach(dateKey => {
-      grouped[dateKey].sort((a, b) => a.start_time.localeCompare(b.start_time))
-    })
-
-    return { grouped, cache }
-  }
+  }, [currentMonth])
 
   useEffect(() => {
+    let isActive = true
     const load = async () => {
       setLoading(true)
-      setError('')
       try {
-        const { grouped, cache } = await fetchAttendanceState()
-        setAttendanceByDate(grouped)
-        setUserIdCache(cache)
+        await refresh()
       } catch (err) {
-        console.error(err)
-        setError('勤怠データの取得に失敗しました')
+        if (!isActive) return
       } finally {
-        setLoading(false)
+        if (isActive) {
+          setLoading(false)
+        }
       }
     }
 
     load()
-  }, [currentMonth])
+
+    return () => {
+      isActive = false
+    }
+  }, [refresh])
 
   useEffect(() => {
     if (!selectedDate) {
@@ -219,10 +267,15 @@ export const AttendanceCalendar: React.FC = () => {
     setCurrentMonth(next)
   }
 
-  const refresh = async () => {
-    const { grouped, cache } = await fetchAttendanceState()
-    setAttendanceByDate(grouped)
-    setUserIdCache(cache)
+  const handleRetry = async () => {
+    setLoading(true)
+    try {
+      await refresh()
+    } catch (err) {
+      // refresh already logs and updates the fallback state
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSaveAttendance = async (attendanceId: string) => {
@@ -382,8 +435,23 @@ export const AttendanceCalendar: React.FC = () => {
           </button>
         </div>
 
-        {error && (
-          <div className="mt-4 bg-red-500/20 text-red-200 px-4 py-3 rounded-lg">{error}</div>
+        {userRolesError && (
+          <div className="mt-4 bg-red-500/20 text-red-200 px-4 py-3 rounded-lg">
+            {userRolesError}
+          </div>
+        )}
+
+        {loadIssue && (
+          <div className="mt-4 bg-amber-500/10 text-amber-100 px-4 py-3 rounded-lg flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>最新の勤怠データを表示できませんでした。再読み込みをお試しください。</span>
+            <button
+              onClick={handleRetry}
+              className="inline-flex items-center justify-center px-4 py-2 rounded bg-amber-500/40 hover:bg-amber-500/60 transition disabled:opacity-60"
+              disabled={loading}
+            >
+              再読み込み
+            </button>
+          </div>
         )}
 
         <div className="mt-6 bg-white/5 rounded-lg p-4 sm:p-6 shadow-xl">
