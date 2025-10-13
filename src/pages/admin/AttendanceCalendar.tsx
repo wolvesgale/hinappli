@@ -155,8 +155,10 @@ export const AttendanceCalendar: React.FC = () => {
       const message = String((err as Error)?.message || '')
       console.error('[attendance] fetch error', err)
       setAttendanceByDate({})
-      if (message.startsWith('AUTH_401') || message.startsWith('AUTH_403')) {
-        setLoadError('認証キーが無効です。Supabaseの anon key とプロジェクトURLを確認してください。')
+      if (message === 'ANON_KEY_MISCONFIGURED') {
+        setLoadError('anon key が未設定/全角を含んでいます。Supabase の anon public key を半角で設定してください。')
+      } else if (message.startsWith('AUTH_401') || message.startsWith('AUTH_403')) {
+        setLoadError('認証エラーです。anon key または RLS を確認してください。')
       } else {
         setLoadError('勤怠データの取得に失敗しました。ネットワークまたは設定を確認してください。')
       }
