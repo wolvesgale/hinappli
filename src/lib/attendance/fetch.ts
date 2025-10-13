@@ -44,7 +44,3 @@ export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
   return (await res.json()) as AttendanceRow[]
 }
 
-/** 表示名は display_name を優先し、メールをフォールバック */
-export function toDisplayName(row: AttendanceRow): string {
-  return (row.display_name?.trim() || row.user_email || '').trim()
-}

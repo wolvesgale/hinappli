@@ -28,3 +28,8 @@ export const SUPABASE_REST_BASE =
 
 export const SUPABASE_ANON_KEY =
   PUBLIC_ANON || FALLBACK_ANON_KEY
+
+if (typeof globalThis !== 'undefined') {
+  ;(globalThis as any).__SUPABASE_REST_FALLBACK__ = SUPABASE_REST_BASE
+  ;(globalThis as any).__SUPABASE_ANON_FALLBACK__ = SUPABASE_ANON_KEY
+}

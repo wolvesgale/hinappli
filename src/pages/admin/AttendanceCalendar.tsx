@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthProvider'
 import { supabase } from '../../lib/supabase'
 import type { UserRole } from '../../types/database'
-import { fetchAttendancesInRange, toDisplayName, type AttendanceRow } from '../../lib/attendance/fetch'
+import { fetchAttendancesInRange, type AttendanceRow } from '../../lib/attendance/fetch'
+import { nameEmailOnly } from '@/lib/names/resolver'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -405,7 +406,7 @@ export const AttendanceCalendar: React.FC = () => {
                 }
 
                 const companionCount = cell.records.filter(record => record.companion_checked).length
-                const uniqueNames = Array.from(new Set(cell.records.map(record => toDisplayName(record))))
+                const uniqueNames = Array.from(new Set(cell.records.map(record => nameEmailOnly(record.user_email))))
                 const visibleNames = uniqueNames.slice(0, 3)
                 const remainingCount = uniqueNames.length - visibleNames.length
 
@@ -474,7 +475,7 @@ export const AttendanceCalendar: React.FC = () => {
                   return (
                     <div key={attendance.id} className="bg-white/5 rounded-xl border border-white/10 p-4 space-y-4">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div className="text-base font-semibold">{toDisplayName(attendance)}</div>
+                        <div className="text-base font-semibold">{nameEmailOnly(attendance.user_email)}</div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleDeleteAttendance(attendance.id)}
