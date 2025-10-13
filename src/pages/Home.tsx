@@ -10,6 +10,7 @@ export const Home: React.FC = () => {
   const [registerStatus, setRegisterStatus] = useState<'closed' | 'open'>('closed')
   const [cashAmount, setCashAmount] = useState('')
   const [paypayAmount, setPaypayAmount] = useState('')
+  const [tsukeAmount, setTsukeAmount] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [attendingMembers, setAttendingMembers] = useState<Array<{
@@ -342,12 +343,12 @@ export const Home: React.FC = () => {
 
   const handlePaypaySale = async () => {
     if (!authUser) return
-    
+
     if (registerStatus !== 'open') {
       alert('レジがオープンされていません。先にレジをオープンしてください。')
       return
     }
-    
+
     if (paypayAmount) {
       try {
         const today = new Date().toISOString().split('T')[0]
@@ -355,7 +356,7 @@ export const Home: React.FC = () => {
           .from('transactions')
           .insert({
             biz_date: today,
-            payment_method: 'paypay',
+            payment_method: 'paypay_credit',
             amount: parseFloat(paypayAmount),
             attributed_to_email: attributedToEmail || null,
             created_by: authUser.user.email!
@@ -364,9 +365,41 @@ export const Home: React.FC = () => {
         if (error) throw error
         setPaypayAmount('')
         setAttributedToEmail('')
-        console.log('PayPay売上を記録しました:', paypayAmount)
+        console.log('キャッシュレス売上を記録しました:', paypayAmount)
       } catch (error) {
-        console.error('PayPay売上記録エラー:', error)
+        console.error('キャッシュレス売上記録エラー:', error)
+        alert('売上記録に失敗しました。もう一度お試しください。')
+      }
+    }
+  }
+
+  const handleTsukeSale = async () => {
+    if (!authUser) return
+
+    if (registerStatus !== 'open') {
+      alert('レジがオープンされていません。先にレジをオープンしてください。')
+      return
+    }
+
+    if (tsukeAmount) {
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const { error } = await supabase
+          .from('transactions')
+          .insert({
+            biz_date: today,
+            payment_method: 'tsuke',
+            amount: parseFloat(tsukeAmount),
+            attributed_to_email: attributedToEmail || null,
+            created_by: authUser.user.email!
+          })
+
+        if (error) throw error
+        setTsukeAmount('')
+        setAttributedToEmail('')
+        console.log('ツケ売上を記録しました:', tsukeAmount)
+      } catch (error) {
+        console.error('ツケ売上記録エラー:', error)
         alert('売上記録に失敗しました。もう一度お試しください。')
       }
     }
@@ -479,9 +512,9 @@ export const Home: React.FC = () => {
                   </div>
                 </div>
 
-                {/* PayPay */}
+                {/* PayPay / クレジット */}
                 <div className="space-y-2">
-                  <label className="text-sm text-gray-300">PayPay</label>
+                  <label className="text-sm text-gray-300">PayPay / クレジット</label>
                   <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                     <input
                       type="number"
@@ -494,6 +527,27 @@ export const Home: React.FC = () => {
                       onClick={handlePaypaySale}
                       disabled={!paypayAmount}
                       className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white px-6 py-2 rounded text-sm font-medium whitespace-nowrap"
+                    >
+                      記録
+                    </button>
+                  </div>
+                </div>
+
+                {/* ツケ */}
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-300">ツケ</label>
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                    <input
+                      type="number"
+                      value={tsukeAmount}
+                      onChange={(e) => setTsukeAmount(e.target.value)}
+                      placeholder="金額"
+                      className="flex-1 bg-black/30 border border-white/20 rounded px-3 py-2 text-white placeholder-gray-400 text-sm min-w-0"
+                    />
+                    <button
+                      onClick={handleTsukeSale}
+                      disabled={!tsukeAmount}
+                      className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-6 py-2 rounded text-sm font-medium whitespace-nowrap"
                     >
                       記録
                     </button>

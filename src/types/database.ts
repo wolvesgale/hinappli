@@ -100,7 +100,7 @@ export type Database = {
         Row: {
           id: string
           biz_date: string
-          payment_method: string
+          payment_method: 'cash' | 'paypay_credit' | 'tsuke'
           amount: number
           memo: string | null
           attributed_to_email: string | null
@@ -110,7 +110,7 @@ export type Database = {
         Insert: {
           id?: string
           biz_date: string
-          payment_method: string
+          payment_method: 'cash' | 'paypay_credit' | 'tsuke'
           amount: number
           memo?: string | null
           attributed_to_email?: string | null
@@ -120,7 +120,7 @@ export type Database = {
         Update: {
           id?: string
           biz_date?: string
-          payment_method?: string
+          payment_method?: 'cash' | 'paypay_credit' | 'tsuke'
           amount?: number
           memo?: string | null
           attributed_to_email?: string | null
@@ -132,7 +132,7 @@ export type Database = {
       attendances: {
         Row: {
           id: string
-          user_id: string
+          user_id: string | null
           user_email: string
           start_time: string
           end_time: string | null
@@ -141,7 +141,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id: string
+          user_id?: string | null
           user_email: string
           start_time: string
           end_time?: string | null
@@ -150,7 +150,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          user_id?: string
+          user_id?: string | null
           user_email?: string
           start_time?: string
           end_time?: string | null
@@ -161,7 +161,18 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_attendances_with_roles: {
+        Row: {
+          id: string
+          user_id: string | null
+          user_email: string
+          display_name_raw: string
+          start_time: string
+          end_time: string | null
+          companion_checked: boolean
+          created_at: string
+        }
+      }
     }
     Functions: {
       [_ in never]: never
@@ -181,3 +192,4 @@ export type UserRole = Database['public']['Tables']['user_roles']['Row']
 export type RegisterSession = Database['public']['Tables']['register_sessions']['Row']
 export type Transaction = Database['public']['Tables']['transactions']['Row']
 export type Attendance = Database['public']['Tables']['attendances']['Row']
+export type AttendanceWithRole = Database['public']['Views']['v_attendances_with_roles']['Row']
