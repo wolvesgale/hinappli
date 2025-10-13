@@ -100,7 +100,7 @@ export type Database = {
         Row: {
           id: string
           biz_date: string
-          payment_method: string
+          payment_method: 'cash' | 'paypay_credit' | 'tsuke'
           amount: number
           memo: string | null
           attributed_to_email: string | null
@@ -110,7 +110,7 @@ export type Database = {
         Insert: {
           id?: string
           biz_date: string
-          payment_method: string
+          payment_method: 'cash' | 'paypay_credit' | 'tsuke'
           amount: number
           memo?: string | null
           attributed_to_email?: string | null
@@ -120,7 +120,7 @@ export type Database = {
         Update: {
           id?: string
           biz_date?: string
-          payment_method?: string
+          payment_method?: 'cash' | 'paypay_credit' | 'tsuke'
           amount?: number
           memo?: string | null
           attributed_to_email?: string | null
@@ -132,7 +132,7 @@ export type Database = {
       attendances: {
         Row: {
           id: string
-          user_id: string
+          user_id: string | null
           user_email: string
           start_time: string
           end_time: string | null
@@ -141,7 +141,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id: string
+          user_id?: string | null
           user_email: string
           start_time: string
           end_time?: string | null
@@ -150,7 +150,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          user_id?: string
+          user_id?: string | null
           user_email?: string
           start_time?: string
           end_time?: string | null
