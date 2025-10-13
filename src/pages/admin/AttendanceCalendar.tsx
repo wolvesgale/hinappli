@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthProvider'
 import { supabase } from '../../lib/supabase'
 import type { UserRole } from '../../types/database'
-import type { AttendanceRow } from '../../lib/attendance/fetch'
-import { fetchAttendancesInRange } from '../../lib/attendance/fetch'
+import { fetchAttendancesInRange, toDisplayName, type AttendanceRow } from '../../lib/attendance/fetch'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -335,19 +334,6 @@ export const AttendanceCalendar: React.FC = () => {
     }
   }
 
-  const userRoleByEmail = useMemo(() => {
-    return userRoles.reduce<Record<string, UserRole['role']>>((acc, user) => {
-      const key = normalizeEmail(user.email)
-      acc[key] = user.role
-      return acc
-    }, {})
-  }, [userRoles])
-
-  const getRoleLabel = (email: string) => {
-    const normalized = normalizeEmail(email)
-    return userRoleByEmail[normalized] ?? ''
-  }
-
   if (!authUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 flex items-center justify-center">
@@ -427,7 +413,7 @@ export const AttendanceCalendar: React.FC = () => {
                 }
 
                 const companionCount = cell.records.filter(record => record.companion_checked).length
-                const uniqueNames = Array.from(new Set(cell.records.map(record => record.display_name)))
+                const uniqueNames = Array.from(new Set(cell.records.map(record => toDisplayName(record))))
                 const visibleNames = uniqueNames.slice(0, 3)
                 const remainingCount = uniqueNames.length - visibleNames.length
 
@@ -496,14 +482,7 @@ export const AttendanceCalendar: React.FC = () => {
                   return (
                     <div key={attendance.id} className="bg-white/5 rounded-xl border border-white/10 p-4 space-y-4">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div>
-                          <div className="text-base font-semibold">{attendance.display_name}</div>
-                          {getRoleLabel(attendance.user_email) && (
-                            <div className="text-xs text-gray-400">
-                              権限: {getRoleLabel(attendance.user_email)}
-                            </div>
-                          )}
-                        </div>
+                        <div className="text-base font-semibold">{toDisplayName(attendance)}</div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleDeleteAttendance(attendance.id)}
