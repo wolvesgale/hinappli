@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthProvider'
 import { supabase } from '../../lib/supabase'
 import type { UserRole } from '../../types/database'
-import { fetchAttendancesInRange, toDisplayName, type AttendanceRow } from '../../lib/attendance/fetch'
+import { fetchAttendancesInRange, attendanceEmailLabel, type AttendanceRow } from '../../lib/attendance/fetch'
+import { SUPABASE_ANON_KEY, SUPABASE_REST_BASE } from '../../lib/env.client'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -74,6 +75,7 @@ export const AttendanceCalendar: React.FC = () => {
   const [userRolesError, setUserRolesError] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [modalError, setModalError] = useState('')
+  const [diagVisible, setDiagVisible] = useState(true)
 
   const calendarMeta = useMemo(() => {
     const [yearString, monthString] = currentMonth.split('-')
@@ -154,7 +156,7 @@ export const AttendanceCalendar: React.FC = () => {
       console.error('[attendance] fetch error', err)
       setAttendanceByDate({})
       if (message.startsWith('AUTH_401') || message.startsWith('AUTH_403')) {
-        setLoadError('認証キーが無効です。運用管理者にご連絡ください。（anon key 再設定）')
+        setLoadError('認証キーが無効です。Supabaseの anon key とプロジェクトURLを確認してください。')
       } else {
         setLoadError('勤怠データの取得に失敗しました。ネットワークまたは設定を確認してください。')
       }
@@ -182,6 +184,12 @@ export const AttendanceCalendar: React.FC = () => {
       isActive = false
     }
   }, [refresh])
+
+  useEffect(() => {
+    if (!diagVisible) return
+    const timer = window.setTimeout(() => setDiagVisible(false), 10000)
+    return () => window.clearTimeout(timer)
+  }, [diagVisible])
 
   useEffect(() => {
     if (!selectedDate) {
@@ -373,6 +381,25 @@ export const AttendanceCalendar: React.FC = () => {
           </button>
         </div>
 
+        {diagVisible && (
+          <div className="mt-4 bg-slate-800/60 text-xs sm:text-sm text-slate-100 px-4 py-3 rounded-lg space-y-1 border border-slate-600/50">
+            <div className="font-semibold uppercase tracking-wider text-slate-300">Supabase Diagnostics</div>
+            <div className="break-all">
+              REST_BASE: <span className="font-mono">{SUPABASE_REST_BASE || '(empty)'}</span>
+            </div>
+            <div className="break-all">
+              ANON_KEY: <span className="font-mono">{SUPABASE_ANON_KEY ? `${SUPABASE_ANON_KEY.slice(0, 6)}…${SUPABASE_ANON_KEY.slice(-4)}` : '(empty)'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDiagVisible(false)}
+              className="mt-2 inline-flex items-center rounded bg-white/10 px-3 py-1 text-xs font-medium hover:bg-white/20"
+            >
+              非表示にする
+            </button>
+          </div>
+        )}
+
         {userRolesError && (
           <div className="mt-4 bg-red-500/20 text-red-200 px-4 py-3 rounded-lg">
             {userRolesError}
@@ -410,7 +437,7 @@ export const AttendanceCalendar: React.FC = () => {
                 }
 
                 const companionCount = cell.records.filter(record => record.companion_checked).length
-                const uniqueNames = Array.from(new Set(cell.records.map(record => toDisplayName(record))))
+                const uniqueNames = Array.from(new Set(cell.records.map(record => attendanceEmailLabel(record))))
                 const visibleNames = uniqueNames.slice(0, 3)
                 const remainingCount = uniqueNames.length - visibleNames.length
 
@@ -479,7 +506,7 @@ export const AttendanceCalendar: React.FC = () => {
                   return (
                     <div key={attendance.id} className="bg-white/5 rounded-xl border border-white/10 p-4 space-y-4">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div className="text-base font-semibold">{toDisplayName(attendance)}</div>
+                        <div className="text-base font-semibold">{attendanceEmailLabel(attendance)}</div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleDeleteAttendance(attendance.id)}
