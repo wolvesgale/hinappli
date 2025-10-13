@@ -1,35 +1,18 @@
 // lib/env.client.ts
-const readEnv = (key: string): string | undefined => {
-  if (typeof process !== 'undefined' && typeof process.env !== 'undefined' && process.env[key]) {
-    return process.env[key]
-  }
+// 1) 環境変数（あれば優先）
+const PUB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '')
+const PUB_REST = (process.env.NEXT_PUBLIC_SUPABASE_REST_URL || '').replace(/\/+$/, '')
+const PUB_ANON = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim()
 
-  if (typeof import.meta !== 'undefined' && (import.meta as any)?.env) {
-    const metaEnv = (import.meta as any).env as Record<string, string | undefined>
-    return metaEnv[key]
-  }
+// 2) フォールバック（★必ず埋める：あなたの Supabase の anon key）
+export const FALLBACK_REST_BASE = 'https://fekjhyecepyrrmmbvtwj.supabase.co/rest/v1'
+export const FALLBACK_ANON_KEY = '<PASTE_YOUR_SUPABASE_ANON_KEY_HERE>' // ←ここに anon key を貼る
 
-  return undefined
-}
+// 3) 実際に使う値（env → fallback の順）
+export const SUPABASE_REST_BASE = (PUB_REST || (PUB_URL ? `${PUB_URL}/rest/v1` : '') || FALLBACK_REST_BASE).replace(/\/+$/, '')
+export const SUPABASE_ANON_KEY = PUB_ANON || FALLBACK_ANON_KEY
 
-// 1) まずは .env の公開環境変数
-const PUBLIC_URL = readEnv('NEXT_PUBLIC_SUPABASE_URL')?.replace(/\/+$/, '') || ''
-const PUBLIC_REST = readEnv('NEXT_PUBLIC_SUPABASE_REST_URL')?.replace(/\/+$/, '') || ''
-const PUBLIC_ANON = readEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY') || ''
-
-// 2) フォールバック直値（← 必ず編集）
-//   URL はあなたの Supabase プロジェクトに合わせて固定
-//   ANON は Supabase > Project Settings > API の "anon public" をコピペ
-const FALLBACK_REST_BASE = 'https://fekjhyecepyrrmmbvtwj.supabase.co/rest/v1' // ←直すならここ
-const FALLBACK_ANON_KEY = '<PUT_YOUR_SUPABASE_ANON_KEY_HERE>'                // ←anonキーを貼る
-
-export const SUPABASE_REST_BASE =
-  PUBLIC_REST || (PUBLIC_URL ? `${PUBLIC_URL}/rest/v1` : '') || FALLBACK_REST_BASE
-
-export const SUPABASE_ANON_KEY =
-  PUBLIC_ANON || FALLBACK_ANON_KEY
-
-if (typeof globalThis !== 'undefined') {
-  ;(globalThis as any).__SUPABASE_REST_FALLBACK__ = SUPABASE_REST_BASE
-  ;(globalThis as any).__SUPABASE_ANON_FALLBACK__ = SUPABASE_ANON_KEY
+if (typeof window !== 'undefined') {
+  const keyPreview = SUPABASE_ANON_KEY ? `${SUPABASE_ANON_KEY.slice(0, 6)}…` : '(empty)'
+  console.info('[supabase] REST_BASE:', SUPABASE_REST_BASE, ' ANON_KEY:', keyPreview)
 }

@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthProvider'
 import { supabase } from '../../lib/supabase'
 import type { UserRole } from '../../types/database'
-import { fetchAttendancesInRange, type AttendanceRow } from '../../lib/attendance/fetch'
-import { nameEmailOnly } from '@/lib/names/resolver'
+import { fetchAttendancesInRange, toDisplayName, type AttendanceRow } from '../../lib/attendance/fetch'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -151,9 +150,14 @@ export const AttendanceCalendar: React.FC = () => {
       setAttendanceByDate(grouped)
       setLoadError(null)
     } catch (err) {
-      console.error('attendance fetch error', err)
+      const message = String((err as Error)?.message || '')
+      console.error('[attendance] fetch error', err)
       setAttendanceByDate({})
-      setLoadError('勤怠データの取得に失敗しました。環境変数とネットワークを確認してください。')
+      if (message.startsWith('AUTH_401') || message.startsWith('AUTH_403')) {
+        setLoadError('認証キーが無効です。運用管理者にご連絡ください。（anon key 再設定）')
+      } else {
+        setLoadError('勤怠データの取得に失敗しました。ネットワークまたは設定を確認してください。')
+      }
     }
   }, [currentMonth])
 
@@ -406,7 +410,7 @@ export const AttendanceCalendar: React.FC = () => {
                 }
 
                 const companionCount = cell.records.filter(record => record.companion_checked).length
-                const uniqueNames = Array.from(new Set(cell.records.map(record => nameEmailOnly(record.user_email))))
+                const uniqueNames = Array.from(new Set(cell.records.map(record => toDisplayName(record))))
                 const visibleNames = uniqueNames.slice(0, 3)
                 const remainingCount = uniqueNames.length - visibleNames.length
 
@@ -475,7 +479,7 @@ export const AttendanceCalendar: React.FC = () => {
                   return (
                     <div key={attendance.id} className="bg-white/5 rounded-xl border border-white/10 p-4 space-y-4">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div className="text-base font-semibold">{nameEmailOnly(attendance.user_email)}</div>
+                        <div className="text-base font-semibold">{toDisplayName(attendance)}</div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleDeleteAttendance(attendance.id)}

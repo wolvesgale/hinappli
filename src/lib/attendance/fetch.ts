@@ -5,42 +5,42 @@ export type AttendanceRow = {
   user_email: string | null
   start_time: string
   end_time: string | null
-  display_name?: string | null
   companion_checked?: boolean | null
 }
 
-function assertRestBase(): string {
-  const base = SUPABASE_REST_BASE?.replace(/\/+$/, '')
-  if (!base) {
-    throw new Error('Supabase REST base URL is not set (check env or fallback).')
-  }
-  return base
-}
-
-function authHeaders() {
+function headers() {
   if (!SUPABASE_ANON_KEY) {
-    throw new Error('Supabase anon key is not set (check env or fallback).')
+    throw new Error('Supabase anon key not set')
   }
   return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
 }
 
-/** from <= start_time < to の勤怠を取得（メール表記で復旧） */
 export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
-  const base = assertRestBase()
-  const url = new URL(`${base}/attendances`)
-  url.searchParams.set(
-    'select',
-    'id,user_email,start_time,end_time,display_name,companion_checked'
-  )
+  if (!SUPABASE_REST_BASE) {
+    throw new Error('Supabase REST base URL not set')
+  }
+  const url = new URL(`${SUPABASE_REST_BASE}/attendances`)
+  url.searchParams.set('select', 'id,user_email,start_time,end_time,companion_checked')
   url.searchParams.set('start_time', `gte.${fromISO}`)
   url.searchParams.append('start_time', `lt.${toISO}`)
   url.searchParams.set('order', 'start_time.asc')
 
-  const res = await fetch(url.toString(), { headers: authHeaders(), cache: 'no-store' })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`fetchAttendancesInRange failed: ${res.status} ${text}`)
+  const res = await fetch(url.toString(), { headers: headers(), cache: 'no-store' })
+
+  if (res.status === 401 || res.status === 403) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`AUTH_${res.status}: ${body || 'Invalid API key (anon). Check env/fallback.'}`)
   }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`HTTP_${res.status}: ${body}`)
+  }
+
   return (await res.json()) as AttendanceRow[]
+}
+
+export function toDisplayName(row: AttendanceRow): string {
+  return (row.user_email || '').trim()
 }
 
