@@ -2,12 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthProvider'
 import { supabase } from '../../lib/supabase'
-import type { Attendance, UserRole } from '../../types/database'
+import type { AttendanceWithRole, UserRole } from '../../types/database'
+import { displayNameOrMasked } from '../../utils/format'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
 const normalizeEmail = (value: string | null | undefined) =>
   (value ?? '').trim().toLowerCase()
+
+type AttendanceCalendarRecord = AttendanceWithRole & { display_name: string }
 
 const formatJstDateKey = (value: string | Date) => {
   const date = typeof value === 'string' ? new Date(value) : value
@@ -56,7 +59,7 @@ const getInitialMonth = () => {
 export const AttendanceCalendar: React.FC = () => {
   const { authUser } = useAuthContext()
   const [currentMonth, setCurrentMonth] = useState(getInitialMonth())
-  const [attendanceByDate, setAttendanceByDate] = useState<Record<string, Attendance[]>>({})
+  const [attendanceByDate, setAttendanceByDate] = useState<Record<string, AttendanceCalendarRecord[]>>({})
   const [userRoles, setUserRoles] = useState<UserRole[]>([])
   const [userIdCache, setUserIdCache] = useState<Record<string, string | null>>({})
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -79,7 +82,7 @@ export const AttendanceCalendar: React.FC = () => {
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
     const firstDay = new Date(year, monthIndex, 1).getDay()
 
-    const cells: Array<{ date: string | null; records: Attendance[] }> = []
+    const cells: Array<{ date: string | null; records: AttendanceCalendarRecord[] }> = []
     for (let i = 0; i < firstDay; i++) {
       cells.push({ date: null, records: [] })
     }
@@ -117,49 +120,58 @@ export const AttendanceCalendar: React.FC = () => {
     fetchUserRoles()
   }, [])
 
+  const fetchAttendanceState = async () => {
+    const [yearString, monthString] = currentMonth.split('-')
+    const year = Number(yearString)
+    const monthIndex = Number(monthString) - 1
+
+    const rangeStart = new Date(Date.UTC(year, monthIndex, 1, -12, 0, 0)).toISOString()
+    const rangeEnd = new Date(Date.UTC(year, monthIndex + 1, 1, 12, 0, 0)).toISOString()
+
+    const { data, error } = await supabase
+      .from('v_attendances_with_roles')
+      .select('*')
+      .gte('start_time', rangeStart)
+      .lt('start_time', rangeEnd)
+      .order('start_time', { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    const grouped: Record<string, AttendanceCalendarRecord[]> = {}
+    const cache: Record<string, string | null> = {}
+
+    ;(data || []).forEach(record => {
+      if (!record.start_time) return
+      const enriched: AttendanceCalendarRecord = {
+        ...record,
+        display_name: displayNameOrMasked(record.display_name_raw)
+      }
+      const key = formatJstDateKey(enriched.start_time)
+      if (!grouped[key]) {
+        grouped[key] = []
+      }
+      grouped[key].push(enriched)
+      const normalizedEmail = normalizeEmail(enriched.user_email)
+      if (normalizedEmail && !(normalizedEmail in cache)) {
+        cache[normalizedEmail] = enriched.user_id ?? null
+      }
+    })
+
+    Object.keys(grouped).forEach(dateKey => {
+      grouped[dateKey].sort((a, b) => a.start_time.localeCompare(b.start_time))
+    })
+
+    return { grouped, cache }
+  }
+
   useEffect(() => {
-    const fetchAttendances = async () => {
+    const load = async () => {
       setLoading(true)
       setError('')
       try {
-        const [yearString, monthString] = currentMonth.split('-')
-        const year = Number(yearString)
-        const monthIndex = Number(monthString) - 1
-
-        const rangeStart = new Date(Date.UTC(year, monthIndex, 1, -12, 0, 0)).toISOString()
-        const rangeEnd = new Date(Date.UTC(year, monthIndex + 1, 1, 12, 0, 0)).toISOString()
-
-        const { data, error: attendanceError } = await supabase
-          .from('attendances')
-          .select('*')
-          .gte('start_time', rangeStart)
-          .lt('start_time', rangeEnd)
-          .order('start_time', { ascending: true })
-
-        if (attendanceError) {
-          throw attendanceError
-        }
-
-        const grouped: Record<string, Attendance[]> = {}
-        const cache: Record<string, string | null> = {}
-
-        ;(data || []).forEach(record => {
-          if (!record.start_time) return
-          const key = formatJstDateKey(record.start_time)
-          if (!grouped[key]) {
-            grouped[key] = []
-          }
-          grouped[key].push(record)
-          const normalizedEmail = normalizeEmail(record.user_email)
-          if (normalizedEmail && !(normalizedEmail in cache)) {
-            cache[normalizedEmail] = record.user_id ?? null
-          }
-        })
-
-        Object.keys(grouped).forEach(dateKey => {
-          grouped[dateKey].sort((a, b) => a.start_time.localeCompare(b.start_time))
-        })
-
+        const { grouped, cache } = await fetchAttendanceState()
         setAttendanceByDate(grouped)
         setUserIdCache(cache)
       } catch (err) {
@@ -170,7 +182,7 @@ export const AttendanceCalendar: React.FC = () => {
       }
     }
 
-    fetchAttendances()
+    load()
   }, [currentMonth])
 
   useEffect(() => {
@@ -208,42 +220,7 @@ export const AttendanceCalendar: React.FC = () => {
   }
 
   const refresh = async () => {
-    const [yearString, monthString] = currentMonth.split('-')
-    const year = Number(yearString)
-    const monthIndex = Number(monthString) - 1
-    const rangeStart = new Date(Date.UTC(year, monthIndex, 1, -12, 0, 0)).toISOString()
-    const rangeEnd = new Date(Date.UTC(year, monthIndex + 1, 1, 12, 0, 0)).toISOString()
-
-    const { data, error: attendanceError } = await supabase
-      .from('attendances')
-      .select('*')
-      .gte('start_time', rangeStart)
-      .lt('start_time', rangeEnd)
-      .order('start_time', { ascending: true })
-
-    if (attendanceError) {
-      throw attendanceError
-    }
-
-    const grouped: Record<string, Attendance[]> = {}
-    const cache: Record<string, string | null> = {}
-
-    ;(data || []).forEach(record => {
-      if (!record.start_time) return
-      const key = formatJstDateKey(record.start_time)
-      if (!grouped[key]) {
-        grouped[key] = []
-      }
-      grouped[key].push(record)
-      if (record.user_email && !(record.user_email in cache)) {
-        cache[record.user_email] = record.user_id ?? null
-      }
-    })
-
-    Object.keys(grouped).forEach(dateKey => {
-      grouped[dateKey].sort((a, b) => a.start_time.localeCompare(b.start_time))
-    })
-
+    const { grouped, cache } = await fetchAttendanceState()
     setAttendanceByDate(grouped)
     setUserIdCache(cache)
   }
@@ -350,28 +327,17 @@ export const AttendanceCalendar: React.FC = () => {
     }
   }
 
-  const userMetaByEmail = useMemo(() => {
-    return userRoles.reduce<Record<string, { displayName: string; role: UserRole['role'] }>>(
-      (acc, user) => {
-        const key = normalizeEmail(user.email)
-        acc[key] = {
-          displayName: user.display_name || user.email,
-          role: user.role
-        }
-        return acc
-      },
-      {}
-    )
+  const userRoleByEmail = useMemo(() => {
+    return userRoles.reduce<Record<string, UserRole['role']>>((acc, user) => {
+      const key = normalizeEmail(user.email)
+      acc[key] = user.role
+      return acc
+    }, {})
   }, [userRoles])
-
-  const getDisplayName = (email: string) => {
-    const normalized = normalizeEmail(email)
-    return userMetaByEmail[normalized]?.displayName ?? email
-  }
 
   const getRoleLabel = (email: string) => {
     const normalized = normalizeEmail(email)
-    return userMetaByEmail[normalized]?.role ?? ''
+    return userRoleByEmail[normalized] ?? ''
   }
 
   if (!authUser) {
@@ -458,7 +424,7 @@ export const AttendanceCalendar: React.FC = () => {
                     {cell.records.length > 0 ? (
                       <div className="mt-2 space-y-1 text-xs text-gray-200">
                         <div>
-                          出勤者: {cell.records.slice(0, 3).map(record => getDisplayName(record.user_email)).join(', ')}
+                          出勤者: {cell.records.slice(0, 3).map(record => record.display_name).join(', ')}
                           {cell.records.length > 3 && ' 他'}
                         </div>
                         {companionCount > 0 && (
@@ -505,9 +471,7 @@ export const AttendanceCalendar: React.FC = () => {
                     <div key={attendance.id} className="bg-white/5 rounded-xl border border-white/10 p-4 space-y-4">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
-                          <div className="text-base font-semibold">
-                            {getDisplayName(attendance.user_email)}
-                          </div>
+                          <div className="text-base font-semibold">{attendance.display_name}</div>
                           {getRoleLabel(attendance.user_email) && (
                             <div className="text-xs text-gray-400">
                               権限: {getRoleLabel(attendance.user_email)}
