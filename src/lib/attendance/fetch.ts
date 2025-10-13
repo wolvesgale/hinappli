@@ -5,6 +5,7 @@ export type AttendanceRow = {
   user_email: string | null
   start_time: string
   end_time: string | null
+  display_name?: string | null
   companion_checked?: boolean | null
 }
 
@@ -27,7 +28,10 @@ function authHeaders() {
 export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
   const base = assertRestBase()
   const url = new URL(`${base}/attendances`)
-  url.searchParams.set('select', 'id,user_email,start_time,end_time,companion_checked')
+  url.searchParams.set(
+    'select',
+    'id,user_email,start_time,end_time,display_name,companion_checked'
+  )
   url.searchParams.set('start_time', `gte.${fromISO}`)
   url.searchParams.append('start_time', `lt.${toISO}`)
   url.searchParams.set('order', 'start_time.asc')
@@ -40,7 +44,7 @@ export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
   return (await res.json()) as AttendanceRow[]
 }
 
-/** 表示名はメール固定 */
+/** 表示名は display_name を優先し、メールをフォールバック */
 export function toDisplayName(row: AttendanceRow): string {
-  return (row.user_email || '').trim()
+  return (row.display_name?.trim() || row.user_email || '').trim()
 }
