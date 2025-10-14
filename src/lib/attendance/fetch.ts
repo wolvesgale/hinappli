@@ -1,3 +1,10 @@
+// lib/attendance/fetch.ts
+import {
+  SUPABASE_REST_BASE,
+  SUPABASE_ANON_KEY,
+  validateAnonKeyOrThrow,
+} from "@/lib/env.client"
+
 export type AttendanceRow = {
   id: string
   user_email: string | null
@@ -34,3 +41,8 @@ export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
 export function attendanceEmailLabel(row: AttendanceRow): string {
   return (row.user_email || '').trim()
 }
+
+// ───────────────────────────────────────────
+// ⚠ 重要: ここに "export function toDisplayName" は存在しない。
+// ファイル末尾に余計な再エクスポートも追加しないこと。
+// ───────────────────────────────────────────
