@@ -11,34 +11,34 @@ export type AttendanceRow = {
   start_time: string
   end_time: string | null
   companion_checked?: boolean | null
-  display_name?: string | null
 }
 
-const API_PATH = '/api/admin/attendances-range-node'
+function resolveOrigin() {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return 'http://localhost'
+}
 
-function buildUrl(fromISO: string, toISO: string) {
-  const base = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
-  const url = new URL(API_PATH, base)
+export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
+  const url = new URL('/api/admin/attendances-range-node', resolveOrigin())
   url.searchParams.set('from', fromISO)
   url.searchParams.set('to', toISO)
   return url
 }
 
-export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
-  const url = buildUrl(fromISO, toISO)
   const res = await fetch(url.toString(), { cache: 'no-store' })
   const body = await res.json().catch(() => null)
 
   if (!res.ok) {
-    const detail = (body as any)?.detail ?? (body as any)?.error ?? `${res.status}`
+    const detail = (body as any)?.error ?? (body as any)?.detail ?? res.statusText
     throw new Error(`ATT_API_${res.status}: ${detail}`)
   }
 
   return (body as AttendanceRow[]) ?? []
 }
 
-/** メール表記で描画（固定） */
-export function attendanceEmailLabel(row: AttendanceRow): string {
+export function attendanceEmailLabel(row: AttendanceRow) {
   return (row.user_email || '').trim()
 }
 

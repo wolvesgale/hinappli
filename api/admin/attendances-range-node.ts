@@ -4,47 +4,43 @@ export const config = {
   runtime: 'nodejs'
 }
 
-function bad(res: any, status: number, msg: string, extra?: unknown) {
-  if (extra) {
-    console.error('[attendances-range-node]', msg, extra)
-  } else {
-    console.error('[attendances-range-node]', msg)
-  }
+function respond(res: any, status: number, body: unknown) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0')
+  res.status(status).json(body)
+}
 
-  res.status(status).json({ error: msg, detail: extra ?? null })
+function fail(res: any, status: number, message: string, extra?: unknown) {
+  console.error('[att-range-node]', message, extra ?? '')
+  respond(res, status, { error: message, detail: extra ?? null })
 }
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
-    bad(res, 405, 'Method Not Allowed')
-    return
-  }
-
-  const { from, to } = req.query as { from?: string; to?: string }
-
-  if (!from || !to) {
-    bad(res, 400, 'Missing from/to')
-    return
-  }
-
-  const supabaseUrl =
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    'https://fekjhyecepyrrmmbvtwj.supabase.co'
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl) {
-    bad(res, 500, 'SUPABASE_URL is not set')
-    return
-  }
-
-  if (!serviceRoleKey) {
-    bad(res, 500, 'SUPABASE_SERVICE_ROLE_KEY is not set')
+    fail(res, 405, 'Method Not Allowed')
     return
   }
 
   try {
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    const { from, to } = (req.query ?? {}) as { from?: string; to?: string }
+    if (!from || !to) {
+      fail(res, 400, 'Missing from/to')
+      return
+    }
+
+    const supabaseUrl =
+      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+    if (!supabaseUrl) {
+      fail(res, 500, 'SUPABASE_URL not set')
+      return
+    }
+    if (!serviceKey) {
+      fail(res, 500, 'SUPABASE_SERVICE_ROLE_KEY not set')
+      return
+    }
+
+    const supabase = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false }
     })
 
@@ -56,26 +52,16 @@ export default async function handler(req: any, res: any) {
       .order('start_time', { ascending: true })
 
     if (error) {
-      bad(res, 500, 'Fetch attendances failed', {
-        message: error.message,
-        code: (error as any)?.code ?? null
-      })
+      fail(res, 500, 'Fetch failed', { message: error.message, code: (error as any)?.code ?? null })
       return
     }
 
-    const records = Array.isArray(data) ? data : []
-    const result = records.map(row => ({
-      ...row,
-      display_name: row?.user_email ?? null
-    }))
-
-    res.status(200).json(result)
-  } catch (error: unknown) {
+    respond(res, 200, (data ?? []).map(record => ({ ...record })))
+  } catch (error) {
     const payload =
       error && typeof error === 'object'
         ? { message: (error as any)?.message ?? 'Unknown error', stack: (error as any)?.stack ?? null }
         : { message: 'Unknown error' }
-
-    bad(res, 500, 'Unhandled exception', payload)
+    fail(res, 500, 'Unhandled', payload)
   }
 }
