@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthProvider'
 import { supabase } from '../../lib/supabase'
 import type { UserRole } from '../../types/database'
-import type { AttendanceRow } from '../../lib/attendance/fetch'
-import { fetchAttendancesInRange } from '../../lib/attendance/fetch'
+import { fetchAttendancesInRange, attendanceEmailLabel, type AttendanceRow } from '../../lib/attendance/fetch'
+import { ErrorBoundary } from '../../components/ErrorBoundary'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -62,7 +62,6 @@ export const AttendanceCalendar: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(getInitialMonth())
   const [attendanceByDate, setAttendanceByDate] = useState<Record<string, AttendanceCalendarRecord[]>>({})
   const [userRoles, setUserRoles] = useState<UserRole[]>([])
-  const [userIdCache, setUserIdCache] = useState<Record<string, string | null>>({})
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [editForms, setEditForms] = useState<Record<string, AttendanceEditForm>>({})
   const [newAttendanceForm, setNewAttendanceForm] = useState<NewAttendanceForm>({
@@ -74,7 +73,7 @@ export const AttendanceCalendar: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userRolesError, setUserRolesError] = useState('')
-  const [loadIssue, setLoadIssue] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [modalError, setModalError] = useState('')
 
   const calendarMeta = useMemo(() => {
@@ -135,7 +134,6 @@ export const AttendanceCalendar: React.FC = () => {
       const rows = await fetchAttendancesInRange(rangeStart, rangeEnd)
 
       const grouped: Record<string, AttendanceCalendarRecord[]> = {}
-      const cache: Record<string, string | null> = {}
 
       rows.forEach(record => {
         if (!record.start_time) return
@@ -144,10 +142,6 @@ export const AttendanceCalendar: React.FC = () => {
           grouped[key] = []
         }
         grouped[key].push(record)
-        const normalizedEmail = normalizeEmail(record.user_email)
-        if (normalizedEmail && !(normalizedEmail in cache)) {
-          cache[normalizedEmail] = record.user_id ?? null
-        }
       })
 
       Object.keys(grouped).forEach(dateKey => {
@@ -155,14 +149,11 @@ export const AttendanceCalendar: React.FC = () => {
       })
 
       setAttendanceByDate(grouped)
-      setUserIdCache(cache)
-      setLoadIssue(false)
+      setLoadError(null)
     } catch (err) {
-      console.error('attendance fetch error', err)
+      console.error('[attendance] fetch error', err)
       setAttendanceByDate({})
-      setUserIdCache({})
-      setLoadIssue(true)
-      throw err
+      setLoadError('勤怠データの取得に失敗しました。時間をおいて再読込してください。')
     }
   }, [currentMonth])
 
@@ -226,8 +217,6 @@ export const AttendanceCalendar: React.FC = () => {
     setLoading(true)
     try {
       await refresh()
-    } catch (err) {
-      // refresh already logs and updates the fallback state
     } finally {
       setLoading(false)
     }
@@ -308,7 +297,10 @@ export const AttendanceCalendar: React.FC = () => {
     try {
       const payload = {
         user_email: newAttendanceForm.userEmail,
-        user_id: userIdCache[normalizeEmail(newAttendanceForm.userEmail)] ?? null,
+        user_id:
+          userRoles.find(
+            user => normalizeEmail(user.email) === normalizeEmail(newAttendanceForm.userEmail)
+          )?.user_id ?? null,
         start_time: toIsoFromLocal(newAttendanceForm.startDateTime),
         end_time: newAttendanceForm.endDateTime ? toIsoFromLocal(newAttendanceForm.endDateTime) : null,
         companion_checked: newAttendanceForm.companion
@@ -335,28 +327,13 @@ export const AttendanceCalendar: React.FC = () => {
     }
   }
 
-  const userRoleByEmail = useMemo(() => {
-    return userRoles.reduce<Record<string, UserRole['role']>>((acc, user) => {
-      const key = normalizeEmail(user.email)
-      acc[key] = user.role
-      return acc
-    }, {})
-  }, [userRoles])
+  const fallbackView = (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 flex items-center justify-center">
+      <div className="text-white">認証情報を確認できませんでした。</div>
+    </div>
+  )
 
-  const getRoleLabel = (email: string) => {
-    const normalized = normalizeEmail(email)
-    return userRoleByEmail[normalized] ?? ''
-  }
-
-  if (!authUser) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 flex items-center justify-center">
-        <div className="text-white">認証情報を確認できませんでした。</div>
-      </div>
-    )
-  }
-
-  return (
+  const calendarView = (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 text-white">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -396,9 +373,9 @@ export const AttendanceCalendar: React.FC = () => {
           </div>
         )}
 
-        {loadIssue && (
+        {loadError && (
           <div className="mt-4 bg-amber-500/10 text-amber-100 px-4 py-3 rounded-lg flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>最新の勤怠データを表示できませんでした。再読み込みをお試しください。</span>
+            <span>{loadError}</span>
             <button
               onClick={handleRetry}
               className="inline-flex items-center justify-center px-4 py-2 rounded bg-amber-500/40 hover:bg-amber-500/60 transition disabled:opacity-60"
@@ -427,7 +404,7 @@ export const AttendanceCalendar: React.FC = () => {
                 }
 
                 const companionCount = cell.records.filter(record => record.companion_checked).length
-                const uniqueNames = Array.from(new Set(cell.records.map(record => record.display_name)))
+                const uniqueNames = Array.from(new Set(cell.records.map(record => attendanceEmailLabel(record))))
                 const visibleNames = uniqueNames.slice(0, 3)
                 const remainingCount = uniqueNames.length - visibleNames.length
 
@@ -496,14 +473,7 @@ export const AttendanceCalendar: React.FC = () => {
                   return (
                     <div key={attendance.id} className="bg-white/5 rounded-xl border border-white/10 p-4 space-y-4">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div>
-                          <div className="text-base font-semibold">{attendance.display_name}</div>
-                          {getRoleLabel(attendance.user_email) && (
-                            <div className="text-xs text-gray-400">
-                              権限: {getRoleLabel(attendance.user_email)}
-                            </div>
-                          )}
-                        </div>
+                        <div className="text-base font-semibold">{attendanceEmailLabel(attendance)}</div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleDeleteAttendance(attendance.id)}
@@ -663,6 +633,13 @@ export const AttendanceCalendar: React.FC = () => {
       )}
     </div>
   )
+
+  return (
+    <ErrorBoundary>
+      {authUser ? calendarView : fallbackView}
+    </ErrorBoundary>
+  )
+
 }
 
 export default AttendanceCalendar
