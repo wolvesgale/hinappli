@@ -6,9 +6,9 @@ export const config = {
 
 function bad(res: any, status: number, msg: string, extra?: unknown) {
   if (extra) {
-    console.error('[attendance-range]', msg, extra)
+    console.error('[attendances-range-node]', msg, extra)
   } else {
-    console.error('[attendance-range]', msg)
+    console.error('[attendances-range-node]', msg)
   }
 
   res.status(status).json({ error: msg, detail: extra ?? null })
@@ -27,13 +27,14 @@ export default async function handler(req: any, res: any) {
     return
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseUrl =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    'https://fekjhyecepyrrmmbvtwj.supabase.co'
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl) {
-    bad(res, 500, 'Supabase URL env is not set', {
-      expected: ['SUPABASE_URL (server)', 'or NEXT_PUBLIC_SUPABASE_URL (public)']
-    })
+    bad(res, 500, 'SUPABASE_URL is not set')
     return
   }
 
@@ -47,28 +48,28 @@ export default async function handler(req: any, res: any) {
       auth: { persistSession: false }
     })
 
-    const { data, error } = await supabase.rpc('fetch_attendances_with_names', {
-      p_from: from,
-      p_to: to
-    })
+    const { data, error } = await supabase
+      .from('attendances')
+      .select('id,user_email,start_time,end_time,companion_checked')
+      .gte('start_time', from)
+      .lt('start_time', to)
+      .order('start_time', { ascending: true })
 
     if (error) {
-      bad(res, 500, 'RPC fetch_attendances_with_names failed', {
+      bad(res, 500, 'Fetch attendances failed', {
         message: error.message,
-        details: (error as any)?.details ?? null,
-        hint: (error as any)?.hint ?? null,
         code: (error as any)?.code ?? null
       })
       return
     }
 
     const records = Array.isArray(data) ? data : []
-    const normalized = records.map((row: any) => ({
+    const result = records.map(row => ({
       ...row,
-      display_name: row?.display_name ?? row?.user_email ?? null
+      display_name: row?.user_email ?? null
     }))
 
-    res.status(200).json(normalized)
+    res.status(200).json(result)
   } catch (error: unknown) {
     const payload =
       error && typeof error === 'object'

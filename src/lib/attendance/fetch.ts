@@ -1,32 +1,36 @@
 export type AttendanceRow = {
   id: string
-  user_id: string | null
-  user_email: string
+  user_email: string | null
   start_time: string
   end_time: string | null
-  companion_checked: boolean
-  created_at: string
-  role: string | null
-  display_name: string
+  companion_checked?: boolean | null
+  display_name?: string | null
 }
 
-const DEFAULT_BASE_URL = 'http://localhost'
+const API_PATH = '/api/admin/attendances-range-node'
 
-export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : DEFAULT_BASE_URL
-  const url = new URL('/api/admin/attendance-range', baseUrl)
+function buildUrl(fromISO: string, toISO: string) {
+  const base = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
+  const url = new URL(API_PATH, base)
   url.searchParams.set('from', fromISO)
   url.searchParams.set('to', toISO)
+  return url
+}
 
-  const response = await fetch(url.toString(), { cache: 'no-store' })
-  if (!response.ok) {
-    throw new Error(`attendance-range: ${response.status}`)
+export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
+  const url = buildUrl(fromISO, toISO)
+  const res = await fetch(url.toString(), { cache: 'no-store' })
+  const body = await res.json().catch(() => null)
+
+  if (!res.ok) {
+    const detail = (body as any)?.detail ?? (body as any)?.error ?? `${res.status}`
+    throw new Error(`ATT_API_${res.status}: ${detail}`)
   }
 
-  const rows = (await response.json()) as AttendanceRow[]
+  return (body as AttendanceRow[]) ?? []
+}
 
-  return rows.map(row => ({
-    ...row,
-    display_name: (row.display_name || row.user_email || '').trim()
-  }))
+/** メール表記で描画（固定） */
+export function attendanceEmailLabel(row: AttendanceRow): string {
+  return (row.user_email || '').trim()
 }
