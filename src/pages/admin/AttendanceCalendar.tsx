@@ -4,7 +4,6 @@ import { useAuthContext } from '../../contexts/AuthProvider'
 import { supabase } from '../../lib/supabase'
 import type { UserRole } from '../../types/database'
 import { fetchAttendancesInRange, attendanceEmailLabel, type AttendanceRow } from '../../lib/attendance/fetch'
-import { SUPABASE_ANON_KEY, SUPABASE_REST_BASE } from '../../lib/env.client'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -152,16 +151,9 @@ export const AttendanceCalendar: React.FC = () => {
       setAttendanceByDate(grouped)
       setLoadError(null)
     } catch (err) {
-      const message = String((err as Error)?.message || '')
       console.error('[attendance] fetch error', err)
       setAttendanceByDate({})
-      if (message === 'ANON_KEY_MISCONFIGURED') {
-        setLoadError('anon key が未設定/全角を含んでいます。Supabase の anon public key を半角で設定してください。')
-      } else if (message.startsWith('AUTH_401') || message.startsWith('AUTH_403')) {
-        setLoadError('認証エラーです。anon key または RLS を確認してください。')
-      } else {
-        setLoadError('勤怠データの取得に失敗しました。ネットワークまたは設定を確認してください。')
-      }
+      setLoadError('勤怠データの取得に失敗しました。時間をおいて再読込してください。')
     }
   }, [currentMonth])
 
