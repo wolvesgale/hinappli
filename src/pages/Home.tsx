@@ -99,7 +99,7 @@ export const Home: React.FC = () => {
         }
 
         // 出勤中のメンバーのemailリストを取得
-        const emails = [...new Set(validAttendances.map(a => a.user_email).filter(Boolean))]
+        const emails = [...new Set(validAttendances.map(a => a.user_email).filter((value): value is string => Boolean(value)))]
         console.log('fetchAttendingMembers: ユニークなメールアドレス', emails)
 
         // user_rolesから役割情報をまとめて取得（emailベース）
@@ -114,8 +114,8 @@ export const Home: React.FC = () => {
           console.error('fetchAttendingMembers: ロールデータエラー', roleError)
           // エラー時はemailのみで表示
           const fallbackMembers = validAttendances.map(attendance => ({
-            email: attendance.user_email,
-            display_name: attendance.user_email,
+            email: attendance.user_email!,
+            display_name: attendance.user_email!,
             role: 'cast',
             start_time: attendance.start_time,
             companion_checked: attendance.companion_checked || false
