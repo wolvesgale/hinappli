@@ -1,32 +1,29 @@
 export type AttendanceRow = {
-  id: string
-  user_id: string | null
-  user_email: string
-  start_time: string
-  end_time: string | null
-  companion_checked: boolean
-  created_at: string
-  role: string | null
-  display_name: string
+  id: string;
+  user_email: string | null;
+  start_time: string;
+  end_time: string | null;
+  companion_checked?: boolean | null;
+};
+
+function origin(): string {
+  if (typeof window !== "undefined" && window.location?.origin) return window.location.origin;
+  return "";
 }
 
-const DEFAULT_BASE_URL = 'http://localhost'
-
+/** クライアントは自前APIのみ呼ぶ（REST直・env参照はしない） */
 export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : DEFAULT_BASE_URL
-  const url = new URL('/api/admin/attendance-range', baseUrl)
-  url.searchParams.set('from', fromISO)
-  url.searchParams.set('to', toISO)
+  const url = new URL("/api/admin/attendances-range-node", origin() || "http://localhost");
+  url.searchParams.set("from", fromISO);
+  url.searchParams.set("to", toISO);
 
-  const response = await fetch(url.toString(), { cache: 'no-store' })
-  if (!response.ok) {
-    throw new Error(`attendance-range: ${response.status}`)
-  }
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(`ATT_API_${res.status}: ${body?.error || body?.detail || res.statusText}`);
+  return (body as AttendanceRow[]) ?? [];
+}
 
-  const rows = (await response.json()) as AttendanceRow[]
-
-  return rows.map(row => ({
-    ...row,
-    display_name: (row.display_name || row.user_email || '').trim()
-  }))
+/** 画面表示はメール固定 */
+export function attendanceEmailLabel(row: AttendanceRow) {
+  return (row.user_email || "").trim();
 }
