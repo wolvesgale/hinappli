@@ -1,10 +1,12 @@
+'use client';
+
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuthContext } from '../contexts/AuthProvider'
-import { supabase, supabaseAdmin } from '../lib/supabase'
-import { cleanupOldRegisterPhotos } from '../utils/photoCleanup'
-import { calculateAttendanceHours, calculateTotalAttendanceHours } from '../utils/timeUtils'
-import type { AccessRequest, UserRole } from '../types/database'
+import { useAuthContext } from '@/contexts/AuthProvider'
+import { supabase, supabaseAdmin } from '@/lib/supabase'
+import { cleanupOldRegisterPhotos } from '@/utils/photoCleanup'
+import { calculateAttendanceHours, calculateTotalAttendanceHours } from '@/utils/timeUtils'
+import type { AccessRequest, UserRole } from '@/types/database'
 
 type PaymentMethod = 'cash' | 'paypay_credit' | 'tsuke'
 
@@ -2195,3 +2197,5 @@ export const Admin: React.FC = () => {
     </div>
   )
 }
+
+export default Admin

@@ -1,8 +1,10 @@
+'use client';
+
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuthContext } from '../../contexts/AuthProvider'
-import { supabase } from '../../lib/supabase'
-import type { Transaction as DbTransaction, UserRole } from '../../types/database'
+import { useAuthContext } from '@/contexts/AuthProvider'
+import { supabase } from '@/lib/supabase'
+import type { Transaction as DbTransaction, UserRole } from '@/types/database'
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -696,3 +698,4 @@ export const SalesCalendar: React.FC = () => {
 }
 
 export default SalesCalendar
+

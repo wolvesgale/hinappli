@@ -1,7 +1,9 @@
+'use client';
+
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuthContext } from '../contexts/AuthProvider'
-import type { AppRole } from '../types/database'
+import { useAuthContext } from '@/contexts/AuthProvider'
+import type { AppRole } from '@/types/database'
 
 export const Register: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -170,3 +172,5 @@ export const Register: React.FC = () => {
     </div>
   )
 }
+
+export default Register
