@@ -1,53 +1,32 @@
-// lib/attendance/fetch.ts
-import {
-  SUPABASE_REST_BASE,
-  SUPABASE_ANON_KEY,
-  validateAnonKeyOrThrow,
-} from "@/lib/env.client"
-
 export type AttendanceRow = {
   id: string;
   user_email: string | null;
   start_time: string;
   end_time: string | null;
+  companion_checked?: boolean | null;
+  display_name?: string | null;
 };
 
-// CSR/SSRどちらでも安全に origin を得る
-function getOrigin(): string {
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin;
-  }
-  // SSR時は相対パスで問題ない（Next/Vercel が補完する）
+function origin(): string {
+  if (typeof window !== "undefined" && window.location?.origin) return window.location.origin;
   return "";
 }
 
-/**
- * 勤怠を期間で取得（クライアントは自前APIだけ叩く）
- * - REST直叩きや env 参照はしない
- */
+/** クライアントは自前APIのみ呼ぶ（REST直・env参照はしない） */
 export async function fetchAttendancesInRange(fromISO: string, toISO: string) {
-  const base = getOrigin();
-  const url = new URL("/api/admin/attendances-range-node", base || "http://localhost");
+  const url = new URL("/api/admin/attendances-range-node", origin() || "http://localhost");
   url.searchParams.set("from", fromISO);
   url.searchParams.set("to", toISO);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
   const body = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    const detail = body?.detail || body?.error || res.statusText || `${res.status}`;
-    throw new Error(`ATT_API_${res.status}: ${detail}`);
-  }
-
+  if (!res.ok) throw new Error(`ATT_API_${res.status}: ${body?.error || body?.detail || res.statusText}`);
   return (body as AttendanceRow[]) ?? [];
 }
 
-/** 画面表示はメール固定 */
-export function attendanceEmailLabel(row: AttendanceRow) {
+/** 表示名優先（fallback はメール） */
+export function attendanceLabel(row: AttendanceRow) {
+  const display = (row.display_name || "").trim();
+  if (display) return display;
   return (row.user_email || "").trim();
 }
-
-// ───────────────────────────────────────────
-// ⚠ 重要: ここに "export function toDisplayName" は存在しない。
-// ファイル末尾に余計な再エクスポートも追加しないこと。
-// ───────────────────────────────────────────

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuthContext } from '../../contexts/AuthProvider'
-import { supabase } from '../../lib/supabase'
-import type { UserRole } from '../../types/database'
+import { useAuthContext } from '@/contexts/AuthProvider'
+import { supabase } from '@/lib/supabase'
+import type { UserRole } from '@/types/database'
 
 type RoleFilter = 'all' | 'owner' | 'cast' | 'driver'
 
@@ -268,3 +268,4 @@ export const UsersAdmin: React.FC = () => {
 }
 
 export default UsersAdmin
+
