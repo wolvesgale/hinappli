@@ -56,7 +56,15 @@ export async function GET(req: Request) {
 
     // 2) メール集合を抽出し、ユーザーロールから表示名を取得
     const emails = Array.from(
-      new Set(data.map((r) => (r.user_email || "").trim()).filter((email) => email.length > 0))
+      new Set(
+        data
+          .map((r) => (r.user_email || "").trim())
+          .filter((email) => email.length > 0)
+          .flatMap((email) => {
+            const lower = email.toLowerCase();
+            return lower !== email ? [email, lower] : [email];
+          })
+      )
     );
 
     const nameMap: Record<string, string> = {};
@@ -71,11 +79,12 @@ export async function GET(req: Request) {
         console.error("[att-range-node] roles fetch failed", rolesErr);
       } else if (roles) {
         for (const role of roles as RoleRow[]) {
-          const email = (role.email || "").trim();
-          if (!email) continue;
+          const rawEmail = (role.email || "").trim();
+          if (!rawEmail) continue;
+          const key = rawEmail.toLowerCase();
           const value = (role.display_name || "").trim();
           if (value) {
-            nameMap[email] = value;
+            nameMap[key] = value;
           }
         }
       }
@@ -84,7 +93,7 @@ export async function GET(req: Request) {
     // 3) display_name を付与（なければメール）
     const enriched = data.map((row) => {
       const email = (row.user_email || "").trim();
-      const displayName = email ? nameMap[email] || email : "";
+      const displayName = email ? nameMap[email.toLowerCase()] || email : "";
       return { ...row, display_name: displayName };
     });
 
