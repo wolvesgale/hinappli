@@ -1,7 +1,7 @@
 'use client';
 
-import Home from '@/app/pages/Home';
+import SpaShell from '@/app/spa/SpaShell';
 
 export default function Page() {
-  return <Home />;
+  return <SpaShell />;
 }

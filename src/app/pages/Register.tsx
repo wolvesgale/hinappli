@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '@/contexts/AuthProvider'
@@ -170,3 +172,5 @@ export const Register: React.FC = () => {
     </div>
   )
 }
+
+export default Register

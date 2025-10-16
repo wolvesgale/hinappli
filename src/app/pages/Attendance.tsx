@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthContext } from '@/contexts/AuthProvider'
@@ -1016,3 +1018,5 @@ export const Attendance: React.FC = () => {
     </div>
   )
 }
+
+export default Attendance
