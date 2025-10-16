@@ -55,25 +55,17 @@ export async function GET(req: Request) {
     const data: AttendanceRow[] = rows ?? [];
 
     // 2) メール集合を抽出し、ユーザーロールから表示名を取得
-    const emailSet = new Set<string>();
-    for (const row of data) {
-      const raw = (row.user_email || "").trim();
-      if (!raw) continue;
-      emailSet.add(raw);
-      const lower = raw.toLowerCase();
-      if (lower && lower !== raw) {
-        emailSet.add(lower);
-      }
-    }
+    const emails = Array.from(
+      new Set(data.map((r) => (r.user_email || "").trim()).filter((email) => email.length > 0))
+    );
 
-    const emailList = Array.from(emailSet);
-    const nameMap = new Map<string, string>();
+    const nameMap: Record<string, string> = {};
 
-    if (emailList.length > 0) {
+    if (emails.length > 0) {
       const { data: roles, error: rolesErr } = await sb
         .from("user_roles")
         .select("email,display_name")
-        .in("email", emailList);
+        .in("email", emails);
 
       if (rolesErr) {
         console.error("[att-range-node] roles fetch failed", rolesErr);
@@ -81,10 +73,9 @@ export async function GET(req: Request) {
         for (const role of roles as RoleRow[]) {
           const email = (role.email || "").trim();
           if (!email) continue;
-          const key = email.toLowerCase();
           const value = (role.display_name || "").trim();
           if (value) {
-            nameMap.set(key, value);
+            nameMap[email] = value;
           }
         }
       }
@@ -93,7 +84,7 @@ export async function GET(req: Request) {
     // 3) display_name を付与（なければメール）
     const enriched = data.map((row) => {
       const email = (row.user_email || "").trim();
-      const displayName = email ? nameMap.get(email.toLowerCase()) || email : "";
+      const displayName = email ? nameMap[email] || email : "";
       return { ...row, display_name: displayName };
     });
 
