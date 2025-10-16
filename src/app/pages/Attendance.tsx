@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuthContext } from '../contexts/AuthProvider'
-import { supabase } from '../lib/supabase'
-import type { Attendance as AttendanceRecord } from '../types/database'
-import { compressAttendancePhoto } from '../utils/imageCompression'
-import { formatWorkTime } from '../utils/timeUtils'
+import { useAuthContext } from '@/contexts/AuthProvider'
+import { supabase } from '@/lib/supabase'
+import type { Attendance as AttendanceRecord } from '@/types/database'
+import { compressAttendancePhoto } from '@/utils/imageCompression'
+import { formatWorkTime } from '@/utils/timeUtils'
 
 export const Attendance: React.FC = () => {
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([])
