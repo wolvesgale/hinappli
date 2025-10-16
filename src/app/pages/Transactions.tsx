@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuthContext } from '../contexts/AuthProvider'
-import { supabase } from '../lib/supabase'
-import type { Transaction, UserRole } from '../types/database'
+import { useAuthContext } from '@/contexts/AuthProvider'
+import { supabase } from '@/lib/supabase'
+import type { Transaction, UserRole } from '@/types/database'
 
 const PAYMENT_METHOD_LABELS: Record<Transaction['payment_method'], string> = {
   cash: '現金',
