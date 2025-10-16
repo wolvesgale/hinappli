@@ -1,10 +1,12 @@
+'use client';
+
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '@/contexts/AuthProvider'
 import { RegisterManager } from '@/components/RegisterManager'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 
-export const Home: React.FC = () => {
+const Home: React.FC = () => {
   const { authUser, signOut, isOwner } = useAuthContext()
   const navigate = useNavigate()
   const [registerStatus, setRegisterStatus] = useState<'closed' | 'open'>('closed')
@@ -713,3 +715,6 @@ export const Home: React.FC = () => {
     </div>
   )
 }
+
+export default Home
+export { Home }
