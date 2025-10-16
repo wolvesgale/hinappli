@@ -1,10 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+<<<<<<< HEAD:src/app/pages/admin/AttendanceCalendar.tsx
 import { useAuthContext } from '@/contexts/AuthProvider'
 import { supabase } from '@/lib/supabase'
 import type { UserRole } from '@/types/database'
 import { fetchAttendancesInRange, attendanceLabel, type AttendanceRow } from '@/lib/attendance/fetch'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+=======
+import { useAuthContext } from '../../contexts/AuthProvider'
+import { supabase } from '../../lib/supabase'
+import type { UserRole } from '../../types/database'
+import { fetchAttendancesInRange, attendanceEmailLabel, type AttendanceRow } from '../../lib/attendance/fetch'
+>>>>>>> origin/main:src/pages/admin/AttendanceCalendar.tsx
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -75,6 +82,7 @@ export const AttendanceCalendar: React.FC = () => {
   const [userRolesError, setUserRolesError] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [modalError, setModalError] = useState('')
+  const [diagVisible, setDiagVisible] = useState(true)
 
   const calendarMeta = useMemo(() => {
     const [yearString, monthString] = currentMonth.split('-')
@@ -178,6 +186,12 @@ export const AttendanceCalendar: React.FC = () => {
       isActive = false
     }
   }, [refresh])
+
+  useEffect(() => {
+    if (!diagVisible) return
+    const timer = window.setTimeout(() => setDiagVisible(false), 10000)
+    return () => window.clearTimeout(timer)
+  }, [diagVisible])
 
   useEffect(() => {
     if (!selectedDate) {
@@ -327,6 +341,7 @@ export const AttendanceCalendar: React.FC = () => {
     }
   }
 
+<<<<<<< HEAD:src/app/pages/admin/AttendanceCalendar.tsx
   const fallbackView = (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 flex items-center justify-center">
       <div className="text-white">認証情報を確認できませんでした。</div>
@@ -334,6 +349,17 @@ export const AttendanceCalendar: React.FC = () => {
   )
 
   const calendarView = (
+=======
+  if (!authUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 flex items-center justify-center">
+        <div className="text-white">認証情報を確認できませんでした。</div>
+      </div>
+    )
+  }
+
+  return (
+>>>>>>> origin/main:src/pages/admin/AttendanceCalendar.tsx
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 text-white">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -366,6 +392,25 @@ export const AttendanceCalendar: React.FC = () => {
             翌月
           </button>
         </div>
+
+        {diagVisible && (
+          <div className="mt-4 bg-slate-800/60 text-xs sm:text-sm text-slate-100 px-4 py-3 rounded-lg space-y-1 border border-slate-600/50">
+            <div className="font-semibold uppercase tracking-wider text-slate-300">Supabase Diagnostics</div>
+            <div className="break-all">
+              REST_BASE: <span className="font-mono">{SUPABASE_REST_BASE || '(empty)'}</span>
+            </div>
+            <div className="break-all">
+              ANON_KEY: <span className="font-mono">{SUPABASE_ANON_KEY ? `${SUPABASE_ANON_KEY.slice(0, 6)}…${SUPABASE_ANON_KEY.slice(-4)}` : '(empty)'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDiagVisible(false)}
+              className="mt-2 inline-flex items-center rounded bg-white/10 px-3 py-1 text-xs font-medium hover:bg-white/20"
+            >
+              非表示にする
+            </button>
+          </div>
+        )}
 
         {userRolesError && (
           <div className="mt-4 bg-red-500/20 text-red-200 px-4 py-3 rounded-lg">
@@ -404,7 +449,11 @@ export const AttendanceCalendar: React.FC = () => {
                 }
 
                 const companionCount = cell.records.filter(record => record.companion_checked).length
+<<<<<<< HEAD:src/app/pages/admin/AttendanceCalendar.tsx
                 const uniqueNames = Array.from(new Set(cell.records.map(record => attendanceLabel(record))))
+=======
+                const uniqueNames = Array.from(new Set(cell.records.map(record => attendanceEmailLabel(record))))
+>>>>>>> origin/main:src/pages/admin/AttendanceCalendar.tsx
                 const visibleNames = uniqueNames.slice(0, 3)
                 const remainingCount = uniqueNames.length - visibleNames.length
 
@@ -473,7 +522,11 @@ export const AttendanceCalendar: React.FC = () => {
                   return (
                     <div key={attendance.id} className="bg-white/5 rounded-xl border border-white/10 p-4 space-y-4">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+<<<<<<< HEAD:src/app/pages/admin/AttendanceCalendar.tsx
                         <div className="text-base font-semibold">{attendanceLabel(attendance)}</div>
+=======
+                        <div className="text-base font-semibold">{attendanceEmailLabel(attendance)}</div>
+>>>>>>> origin/main:src/pages/admin/AttendanceCalendar.tsx
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleDeleteAttendance(attendance.id)}

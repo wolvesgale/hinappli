@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+<<<<<<< HEAD:src/app/pages/Home.tsx
 import { useAuthContext } from '@/contexts/AuthProvider'
 import { RegisterManager } from '@/components/RegisterManager'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
+=======
+import { useAuthContext } from '../contexts/AuthProvider'
+import { RegisterManager } from '../components/RegisterManager'
+import { supabase, supabaseAdmin } from '../lib/supabase'
+import { getNameForEmail, prefetchNames } from '@/lib/names/resolver'
+>>>>>>> origin/main:src/pages/Home.tsx
 
 export const Home: React.FC = () => {
   const { authUser, signOut, isOwner } = useAuthContext()
@@ -102,6 +109,8 @@ export const Home: React.FC = () => {
         const emails = [...new Set(validAttendances.map(a => a.user_email).filter((value): value is string => Boolean(value)))]
         console.log('fetchAttendingMembers: ユニークなメールアドレス', emails)
 
+        await prefetchNames(emails)
+
         // user_rolesから役割情報をまとめて取得（emailベース）
         const { data: roles, error: roleError } = await client
           .from('user_roles')
@@ -113,6 +122,7 @@ export const Home: React.FC = () => {
         if (roleError) {
           console.error('fetchAttendingMembers: ロールデータエラー', roleError)
           // エラー時はemailのみで表示
+<<<<<<< HEAD:src/app/pages/Home.tsx
           const fallbackMembers = validAttendances.map(attendance => ({
             email: attendance.user_email!,
             display_name: attendance.user_email!,
@@ -120,6 +130,21 @@ export const Home: React.FC = () => {
             start_time: attendance.start_time,
             companion_checked: attendance.companion_checked || false
           }))
+=======
+          const fallbackMembers = await Promise.all(
+            validAttendances.map(async attendance => {
+              const email = attendance.user_email
+              const resolvedName = email ? await getNameForEmail(email) : ''
+              return {
+                email,
+                display_name: resolvedName || email,
+                role: 'cast',
+                start_time: attendance.start_time,
+                companion_checked: attendance.companion_checked || false
+              }
+            })
+          )
+>>>>>>> origin/main:src/pages/Home.tsx
           setAttendingMembers(fallbackMembers)
           return
         }
